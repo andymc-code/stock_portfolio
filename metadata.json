@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Stock Portfolio",
+  "description": "A visual portfolio manager and watchlist for stocks with real-time prices, powered by the Gemini API.",
+  "requestFramePermissions": []
+}
