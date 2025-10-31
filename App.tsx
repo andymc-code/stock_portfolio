@@ -10,6 +10,7 @@ import Watchlist from './components/Watchlist';
 import Insights from './components/Insights';
 import AddStockForm from './components/AddStockForm';
 import LoginPage from './components/LoginPage';
+import LandingPage from './components/LandingPage';
 import { LoadingIcon, PlusIcon } from './components/icons';
 
 interface Watchlists {
@@ -26,6 +27,7 @@ const App: React.FC = () => {
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isUserDataLoaded, setIsUserDataLoaded] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [showLanding, setShowLanding] = useState<boolean>(true);
   
   const [error, setError] = useState<string | null>(null);
   const [newWatchlistName, setNewWatchlistName] = useState('');
@@ -198,6 +200,9 @@ const App: React.FC = () => {
   }
 
   if (!user) {
+    if (showLanding) {
+        return <LandingPage onEnter={() => setShowLanding(false)} />;
+    }
     return <LoginPage />;
   }
   
