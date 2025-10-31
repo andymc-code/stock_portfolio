@@ -18,6 +18,21 @@ interface Watchlists {
 }
 
 const App: React.FC = () => {
+  // Startup check for API Key
+  if (!process.env.API_KEY) {
+    return (
+      <div className="min-h-screen bg-matrix-bg flex justify-center items-center text-matrix-red p-8 font-mono">
+        <div className="border border-matrix-red p-6 rounded-none max-w-lg text-center bg-black/30">
+          <h1 className="text-2xl font-bold mb-4">[ CONFIGURATION ERROR ]</h1>
+          <p>The Gemini API key is missing from the application's environment.</p>
+          <p className="mt-4 text-sm text-matrix-red/70">
+            To fix this, please go to your project settings on Vercel and add an environment variable named <code className="bg-black/50 px-2 py-1 font-bold">API_KEY</code> with your Gemini API key as the value.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const { user, loading: authLoading } = useAuth();
 
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
