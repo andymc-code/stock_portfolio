@@ -20,21 +20,27 @@ const LoginPage: React.FC = () => {
       if (isLoginView) {
         await login(email, password);
       } else {
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters.');
+          setLoading(false);
+          return;
+        }
         await signup(email, password);
       }
     } catch (err: any) {
-        // More user-friendly error messages
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-            setError('Invalid email or password.');
-        } else if (err.code === 'auth/email-already-in-use') {
-            setError('An account with this email already exists.');
-        } else if (err.code === 'auth/weak-password') {
-            setError('Password should be at least 6 characters.');
-        } else {
-            setError('An unexpected error occurred. Please try again.');
-        }
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -42,81 +48,107 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-        await loginWithGoogle();
+      await loginWithGoogle();
     } catch (err) {
-        setError('Failed to sign in with Google. Please try again.');
+      setError('Failed to sign in with Google. Please try again.');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-matrix-bg flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center mb-6">
-            <ChartIcon className="h-10 w-10 text-matrix-green" />
-            <h1 className="ml-3 text-3xl font-bold text-matrix-green tracking-tight">
-                GEMINI_STOCK_PORTFOLIO
-            </h1>
+    <div className="min-h-screen flex flex-col justify-center items-center p-6 relative overflow-hidden">
+      {/* Background glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-accent-primary/5 rounded-full blur-[150px] pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10 animate-fade-in">
+        {/* Logo */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center mr-3 shadow-glow">
+            <ChartIcon className="h-6 w-6 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+            StockPulse
+          </h1>
         </div>
-        <div className="bg-black/30 p-6 border border-matrix-border shadow-lg shadow-matrix-green/10 rounded-none">
-            <h2 className="text-2xl font-semibold text-center text-matrix-green mb-4">{isLoginView ? 'System Login' : 'Create Account'}</h2>
-            
-            {error && <div className="bg-matrix-red/20 border border-matrix-red text-matrix-red px-3 py-2 rounded-none text-sm mb-4" role="alert">{error}</div>}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-matrix-green/70 mb-1">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full bg-black border border-matrix-border rounded-none py-2 px-3 text-matrix-green focus:outline-none focus:ring-2 focus:ring-matrix-green placeholder:text-green-900"
-                />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-matrix-green/70 mb-1">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-black border border-matrix-border rounded-none py-2 px-3 text-matrix-green focus:outline-none focus:ring-2 focus:ring-matrix-green"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center bg-matrix-green hover:bg-opacity-80 border border-matrix-green text-black font-bold py-2 px-4 rounded-none transition duration-200 disabled:opacity-50"
-              >
-                {loading ? <LoadingIcon/> : (isLoginView ? 'Login' : 'Sign Up')}
-              </button>
-            </form>
-            
-            <div className="my-4 flex items-center">
-                <div className="flex-grow border-t border-matrix-border"></div>
-                <span className="flex-shrink mx-4 text-matrix-green/50 text-xs">OR</span>
-                <div className="flex-grow border-t border-matrix-border"></div>
+        {/* Form Card */}
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold text-center text-text-primary mb-1">
+            {isLoginView ? 'Welcome back' : 'Create account'}
+          </h2>
+          <p className="text-sm text-text-muted text-center mb-6">
+            {isLoginView ? 'Sign in to your portfolio' : 'Start tracking your investments'}
+          </p>
+
+          {error && (
+            <div className="bg-loss-bg border border-loss-border text-loss px-4 py-3 rounded-lg text-sm mb-4 animate-slide-down" role="alert">
+              {error}
             </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="login-email" className="label">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="input"
+                placeholder="you@example.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="login-password" className="label">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isLoginView ? 'current-password' : 'new-password'}
+                className="input"
+                placeholder="••••••••"
+              />
+            </div>
             <button
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full flex items-center justify-center bg-transparent hover:bg-white/10 border border-matrix-border text-matrix-green font-bold py-2 px-4 rounded-none transition duration-200"
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary w-full py-2.5"
             >
-                <GoogleIcon className="h-5 w-5 mr-3" />
-                Continue with Google
+              {loading ? <LoadingIcon /> : (isLoginView ? 'Sign In' : 'Create Account')}
             </button>
+          </form>
 
+          {/* Divider */}
+          <div className="my-5 flex items-center">
+            <div className="flex-grow border-t border-pulse-border" />
+            <span className="flex-shrink mx-4 text-text-muted text-xs uppercase tracking-wider">or</span>
+            <div className="flex-grow border-t border-pulse-border" />
+          </div>
 
-            <div className="mt-6 text-center">
-              <button onClick={() => setIsLoginView(!isLoginView)} className="text-sm text-matrix-green/70 hover:text-matrix-green underline">
-                {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Login'}
-              </button>
-            </div>
+          {/* Google Sign-In */}
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="btn btn-secondary w-full py-2.5"
+          >
+            <GoogleIcon className="h-5 w-5" />
+            Continue with Google
+          </button>
+
+          {/* Toggle */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => { setIsLoginView(!isLoginView); setError(''); }}
+              className="text-sm text-text-muted hover:text-accent-primary-hover transition-colors"
+            >
+              {isLoginView ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

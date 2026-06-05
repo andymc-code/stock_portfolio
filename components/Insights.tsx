@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,34 +30,50 @@ const Insights: React.FC<InsightsProps> = ({ portfolio, data }) => {
   }, [portfolio, data]);
 
   return (
-    <div className="bg-black/30 p-4 md:p-6 border border-matrix-border shadow-lg shadow-matrix-green/10 rounded-none">
-      <div className="flex items-center mb-4">
-        <SparklesIcon className="h-6 w-6 text-matrix-green" />
-        <h2 className="text-xl font-bold text-matrix-green ml-2">Gemini Insights</h2>
+    <div className="card">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg bg-accent-glow flex items-center justify-center">
+          <SparklesIcon className="h-4 w-4 text-accent-primary" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary">AI Insights</h2>
+          <p className="text-[0.65rem] text-text-muted">Powered by Gemini 2.5 Pro</p>
+        </div>
       </div>
-      <p className="text-matrix-green/70 text-sm mb-4">
+
+      <p className="text-xs text-text-muted mb-4 mt-3">
         Get an AI-powered analysis of your portfolio's diversification and risk profile.
       </p>
+
       <button
         onClick={handleAnalysis}
         disabled={isLoading || portfolio.length === 0}
-        className="w-full flex items-center justify-center bg-transparent hover:bg-matrix-green border border-matrix-green text-matrix-green hover:text-black font-bold py-2 px-4 rounded-none transition duration-200 disabled:bg-black disabled:border-green-900 disabled:text-green-900 disabled:cursor-not-allowed"
+        className="btn btn-primary w-full"
       >
         {isLoading ? (
           <>
             <LoadingIcon />
-            <span className="ml-2">Analyzing...</span>
+            <span>Analyzing…</span>
           </>
         ) : (
-          "Analyze My Portfolio"
+          <>
+            <SparklesIcon className="h-4 w-4" />
+            Analyze My Portfolio
+          </>
         )}
       </button>
-      {error && <div className="mt-4 bg-matrix-red/10 border border-matrix-red text-matrix-red px-3 py-2 rounded-none text-sm">{error}</div>}
+
+      {error && (
+        <div className="mt-3 bg-loss-bg border border-loss-border text-loss px-3 py-2 rounded-lg text-xs animate-slide-down">
+          {error}
+        </div>
+      )}
+
       {analysis && (
-        <div className="mt-4 p-4 bg-black/50 rounded-none">
-          <div className="prose-custom text-matrix-green/90 text-sm max-w-none">
+        <div className="mt-4 p-4 bg-pulse-surface rounded-lg border border-pulse-border animate-fade-in">
+          <div className="prose-custom text-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {analysis}
+              {analysis}
             </ReactMarkdown>
           </div>
         </div>

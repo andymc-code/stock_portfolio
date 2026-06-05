@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { StockData } from '../types';
 import { UpArrowIcon, DownArrowIcon, RemoveIcon } from './icons';
@@ -7,57 +6,81 @@ interface StockCardProps {
   ticker: string;
   stock?: StockData;
   shares?: number;
+  avgCost?: number;
   onRemove: (ticker: string) => void;
 }
 
-const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, onRemove }) => {
+const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, onRemove }) => {
   if (!stock) {
-    // Render a skeleton/loading state if stock data is not yet available
     return (
-        <div className="bg-black/50 p-4 rounded-none flex items-center justify-between animate-pulse">
-            <div className="flex-1">
-                <p className="text-xl font-bold text-matrix-green">{ticker}</p>
-                {shares && <p className="text-xs text-green-600 mt-1">{shares} shares</p>}
-            </div>
-            <div className="flex items-center gap-4">
-                <div className="h-5 w-20 bg-matrix-green/20 rounded"></div>
-                <div className="h-5 w-32 bg-matrix-green/20 rounded"></div>
-            </div>
-            <div className="ml-4 text-green-900">
-                <RemoveIcon />
-            </div>
+      <div className="flex items-center justify-between p-3 rounded-lg bg-pulse-surface/50 animate-pulse-soft">
+        <div className="flex-1">
+          <p className="ticker text-sm text-text-primary">{ticker}</p>
+          {shares && <p className="text-[0.65rem] text-text-muted mt-0.5">{shares} shares</p>}
         </div>
+        <div className="flex items-center gap-3">
+          <div className="h-4 w-16 skeleton rounded" />
+          <div className="h-4 w-20 skeleton rounded" />
+        </div>
+        <button className="ml-3 text-text-muted/30 cursor-not-allowed">
+          <RemoveIcon className="h-4 w-4" />
+        </button>
+      </div>
     );
   }
 
   const { price, changeUSD, changePercent } = stock;
   const isUp = changeUSD >= 0;
-  const changeColor = isUp ? 'text-matrix-green' : 'text-matrix-red';
   const totalValue = shares ? shares * price : null;
 
+  // P&L calculation
+  const totalPnL = shares && avgCost ? (price - avgCost) * shares : null;
+  const pnlPercent = avgCost ? ((price - avgCost) / avgCost) * 100 : null;
+
   return (
-    <div className="bg-black/50 p-4 rounded-none flex items-center justify-between transition-colors border border-transparent hover:border-matrix-border">
-      <div className="flex-1">
-        <div className="flex items-center">
-            <p className="text-xl font-bold text-matrix-green">{ticker}</p>
+    <div className="group flex items-center justify-between p-3 rounded-lg bg-pulse-surface/30 border border-transparent hover:border-pulse-border hover:bg-pulse-surface/60 transition-all duration-200">
+      {/* Ticker & Shares */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="ticker text-sm text-text-primary">{ticker}</p>
+          {totalPnL !== null && (
+            <span className={`badge text-[0.6rem] ${totalPnL >= 0 ? 'badge-gain' : 'badge-loss'}`}>
+              {totalPnL >= 0 ? '+' : ''}{pnlPercent?.toFixed(1)}%
+            </span>
+          )}
         </div>
         {shares && (
-            <p className="text-xs text-green-600 mt-1">{shares} shares</p>
+          <p className="text-[0.65rem] text-text-muted mt-0.5">
+            {shares} shares
+            {avgCost ? ` · Avg $${avgCost.toFixed(2)}` : ''}
+          </p>
         )}
       </div>
-      <div className="text-right mx-4 flex-shrink-0">
-        <p className="text-xl font-semibold text-matrix-green">${price?.toFixed(2)}</p>
+
+      {/* Price & Value */}
+      <div className="text-right mx-3 shrink-0">
+        <p className="price text-sm text-text-primary">${price?.toFixed(2)}</p>
         {totalValue && (
-            <p className="text-xs text-green-700">Value: ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-[0.65rem] text-text-muted mt-0.5">
+            ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         )}
       </div>
-      <div className={`flex items-center text-md font-medium w-32 justify-end ${changeColor}`}>
-        {isUp ? <UpArrowIcon /> : <DownArrowIcon />}
-        <span className="w-16 text-right">{changeUSD?.toFixed(2)}</span>
-        <span className="w-16 text-right">({changePercent?.toFixed(2)}%)</span>
+
+      {/* Change */}
+      <div className={`flex items-center text-xs font-medium shrink-0 font-mono tabular-nums ${isUp ? 'text-gain' : 'text-loss'}`}>
+        {isUp ? <UpArrowIcon className="h-3 w-3 mr-0.5" /> : <DownArrowIcon className="h-3 w-3 mr-0.5" />}
+        <span>{Math.abs(changeUSD).toFixed(2)}</span>
+        <span className="ml-1 text-[0.65rem]">({Math.abs(changePercent).toFixed(2)}%)</span>
       </div>
-      <button onClick={() => onRemove(ticker)} className="ml-4 text-green-900 hover:text-matrix-red transition-colors">
-        <RemoveIcon />
+
+      {/* Remove */}
+      <button
+        onClick={() => onRemove(ticker)}
+        className="ml-3 text-text-muted/30 hover:text-loss transition-colors opacity-0 group-hover:opacity-100"
+        aria-label={`Remove ${ticker}`}
+      >
+        <RemoveIcon className="h-4 w-4" />
       </button>
     </div>
   );

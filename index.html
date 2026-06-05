@@ -4,64 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini Stock Portfolio</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              mono: ['monospace'],
-            },
-            colors: {
-              'matrix-green': '#00FF41',
-              'matrix-green-dark': '#008F11',
-              'matrix-red': '#FF4141',
-              'matrix-bg': '#0D0D0D',
-              'matrix-border': 'rgba(0, 255, 65, 0.3)',
-            }
-          }
-        }
-      }
-    </script>
-    <style>
-      body {
-        font-family: 'monospace', monospace;
-      }
-      .blinking-cursor::after {
-        content: '_';
-        animation: blink 1s step-end infinite;
-      }
-      @keyframes blink {
-        from, to { color: transparent }
-        50% { color: #00FF41; }
-      }
-      .prose-custom ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-      .prose-custom ol { list-style-type: decimal; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-      .prose-custom a { color: #39FF14; text-decoration: underline; }
-      .prose-custom strong { font-weight: bold; }
-      .prose-custom h3 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem;}
-
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.24.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
-    "react-markdown": "https://aistudiocdn.com/react-markdown@^9.0.1",
-    "remark-gfm": "https://aistudiocdn.com/remark-gfm@^4.0.0"
-  }
-}
-</script>
-</head>
-  <body class="bg-matrix-bg text-matrix-green">
+    <meta name="description" content="A visual stock portfolio manager with real-time prices, AI-powered insights, and custom watchlists — powered by Gemini." />
+    <title>StockPulse — AI Portfolio Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

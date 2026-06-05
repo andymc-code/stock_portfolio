@@ -1,40 +1,112 @@
-
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import type { StockDataMap } from '../types';
 import StockCard from './StockCard';
+import Modal from './Modal';
 
 interface WatchlistProps {
   name: string;
   tickers: string[];
   data: StockDataMap;
   onRemove: (ticker: string) => void;
-  onRename: () => void;
+  onRename: (newName: string) => void;
   onDelete: () => void;
 }
 
 const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, onRename, onDelete }) => {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameValue, setRenameValue] = useState(name);
+
+  const handleRenameSubmit = useCallback(() => {
+    if (renameValue.trim() && renameValue.trim() !== name) {
+      onRename(renameValue.trim());
+    }
+    setShowRenameModal(false);
+  }, [renameValue, name, onRename]);
+
+  const handleDeleteConfirm = useCallback(() => {
+    onDelete();
+    setShowDeleteModal(false);
+  }, [onDelete]);
+
   return (
-    <div className="bg-black/30 p-4 md:p-6 border border-matrix-border shadow-lg shadow-matrix-green/10 rounded-none">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-matrix-green">{name}</h2>
-        <div className="flex gap-4">
-            <button onClick={onRename} className="text-sm text-matrix-green/70 hover:text-matrix-green underline">Rename</button>
-            <button onClick={onDelete} className="text-sm text-matrix-red/70 hover:text-matrix-red underline">Delete</button>
+    <>
+      <div className="card">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-sm font-semibold text-text-primary">{name}</h2>
+          <div className="flex gap-1">
+            <button
+              onClick={() => { setRenameValue(name); setShowRenameModal(true); }}
+              className="btn btn-ghost btn-sm text-[0.65rem]"
+            >
+              Rename
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="btn btn-ghost btn-sm text-[0.65rem] text-loss/60 hover:text-loss"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {tickers.length > 0 ? tickers.map(ticker => (
+            <StockCard
+              key={ticker}
+              ticker={ticker}
+              stock={data[ticker]}
+              onRemove={onRemove}
+            />
+          )) : (
+            <p className="text-xs text-text-muted py-4 text-center">
+              Empty watchlist — add tickers above.
+            </p>
+          )}
         </div>
       </div>
-      <div className="space-y-3">
-        {tickers.length > 0 ? tickers.map(ticker => (
-          <StockCard 
-            key={ticker} 
-            ticker={ticker} 
-            stock={data[ticker]} 
-            onRemove={onRemove} 
-          />
-        )) : (
-            <p className="text-matrix-green/50">This watchlist is empty. Add a ticker to start tracking.</p>
-        )}
-      </div>
-    </div>
+
+      {/* Rename Modal */}
+      <Modal
+        isOpen={showRenameModal}
+        onClose={() => setShowRenameModal(false)}
+        title="Rename Watchlist"
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowRenameModal(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleRenameSubmit}>Rename</button>
+          </>
+        }
+      >
+        <label htmlFor="rename-watchlist-input" className="label">New Name</label>
+        <input
+          id="rename-watchlist-input"
+          type="text"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
+          className="input"
+          autoFocus
+        />
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Watchlist"
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+            <button className="btn btn-danger" onClick={handleDeleteConfirm}>Delete</button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Are you sure you want to delete <strong className="text-text-primary">"{name}"</strong>?
+          This action cannot be undone.
+        </p>
+      </Modal>
+    </>
   );
 };
 
