@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { PortfolioHolding, StockData, StockDataMap } from '../types';
 
+// FIX: Updated GoogleGenAI initialization to use process.env.API_KEY as required by the Gemini API guidelines and to resolve the TypeScript error.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 // --- Caching Implementation ---

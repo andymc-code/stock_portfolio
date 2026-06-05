@@ -51,6 +51,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ holdings, data, onRemove }) => {
           {holdings.map(holding => (
             <StockCard
               key={holding.ticker}
+              ticker={holding.ticker}
               stock={data[holding.ticker]}
               shares={holding.shares}
               onRemove={onRemove}

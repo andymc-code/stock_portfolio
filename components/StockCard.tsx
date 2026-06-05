@@ -4,23 +4,39 @@ import type { StockData } from '../types';
 import { UpArrowIcon, DownArrowIcon, RemoveIcon } from './icons';
 
 interface StockCardProps {
+  ticker: string;
   stock?: StockData;
   shares?: number;
   onRemove: (ticker: string) => void;
 }
 
-const StockCard: React.FC<StockCardProps> = ({ stock, shares, onRemove }) => {
+const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, onRemove }) => {
   if (!stock) {
-    return null; // Or a loading/error state for this specific card
+    // Render a skeleton/loading state if stock data is not yet available
+    return (
+        <div className="bg-black/50 p-4 rounded-none flex items-center justify-between animate-pulse">
+            <div className="flex-1">
+                <p className="text-xl font-bold text-matrix-green">{ticker}</p>
+                {shares && <p className="text-xs text-green-600 mt-1">{shares} shares</p>}
+            </div>
+            <div className="flex items-center gap-4">
+                <div className="h-5 w-20 bg-matrix-green/20 rounded"></div>
+                <div className="h-5 w-32 bg-matrix-green/20 rounded"></div>
+            </div>
+            <div className="ml-4 text-green-900">
+                <RemoveIcon />
+            </div>
+        </div>
+    );
   }
 
-  const { ticker, price, changeUSD, changePercent } = stock;
+  const { price, changeUSD, changePercent } = stock;
   const isUp = changeUSD >= 0;
   const changeColor = isUp ? 'text-matrix-green' : 'text-matrix-red';
   const totalValue = shares ? shares * price : null;
 
   return (
-    <div className="bg-black/50 p-4 rounded-none flex items-center justify-between transition-colors border border-transparent hover:border-matrix-green">
+    <div className="bg-black/50 p-4 rounded-none flex items-center justify-between transition-colors border border-transparent hover:border-matrix-border">
       <div className="flex-1">
         <div className="flex items-center">
             <p className="text-xl font-bold text-matrix-green">{ticker}</p>

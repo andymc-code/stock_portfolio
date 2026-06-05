@@ -24,7 +24,12 @@ const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, on
       </div>
       <div className="space-y-3">
         {tickers.length > 0 ? tickers.map(ticker => (
-          <StockCard key={ticker} stock={data[ticker]} onRemove={onRemove} />
+          <StockCard 
+            key={ticker} 
+            ticker={ticker} 
+            stock={data[ticker]} 
+            onRemove={onRemove} 
+          />
         )) : (
             <p className="text-matrix-green/50">This watchlist is empty. Add a ticker to start tracking.</p>
         )}

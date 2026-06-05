@@ -1,5 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getPortfolioAnalysis } from '../services/geminiService';
 import type { PortfolioHolding, StockDataMap } from '../types';
 import { SparklesIcon, LoadingIcon } from './icons';
@@ -54,7 +56,11 @@ const Insights: React.FC<InsightsProps> = ({ portfolio, data }) => {
       {error && <div className="mt-4 bg-matrix-red/10 border border-matrix-red text-matrix-red px-3 py-2 rounded-none text-sm">{error}</div>}
       {analysis && (
         <div className="mt-4 p-4 bg-black/50 rounded-none">
-          <div className="prose prose-invert prose-sm text-matrix-green max-w-none" dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }}></div>
+          <div className="prose-custom text-matrix-green/90 text-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {analysis}
+            </ReactMarkdown>
+          </div>
         </div>
       )}
     </div>
