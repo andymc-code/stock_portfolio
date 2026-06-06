@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { StockData, StockDataMap } from '../types';
-import { fetchStockData } from '../services/geminiService';
+import { fetchStockData } from '../services/stockService';
 
 /**
  * Custom hook to manage stock data fetching, caching, and state.
