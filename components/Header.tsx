@@ -1,15 +1,17 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ChartIcon, LoadingIcon, UserIcon, RefreshIcon } from './icons';
-
+import { ChartIcon, LoadingIcon, UserIcon, RefreshIcon, SparklesIcon } from './icons';
+ 
 interface HeaderProps {
   onRefresh: () => void;
   isRefreshing: boolean;
+  aiEnabled: boolean;
+  onToggleAi: () => void;
 }
-
-const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing }) => {
+ 
+const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onToggleAi }) => {
   const { user, logout } = useAuth();
-
+ 
   return (
     <header className="sticky top-0 z-50 border-b border-pulse-border bg-pulse-bg/80 backdrop-blur-xl">
       <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
@@ -22,7 +24,7 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing }) => {
             StockPulse
           </h1>
         </div>
-
+ 
         {/* Actions */}
         <div className="flex items-center gap-3">
           {user && (
@@ -32,6 +34,21 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing }) => {
             </div>
           )}
 
+          {user && (
+            <button
+              onClick={onToggleAi}
+              className={`btn btn-sm flex items-center gap-1.5 transition-all duration-200 ${
+                aiEnabled 
+                  ? 'bg-accent-glow border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20' 
+                  : 'btn-secondary text-text-muted/60 hover:text-text-primary'
+              }`}
+              title={aiEnabled ? 'Disable AI Insights' : 'Enable AI Insights'}
+            >
+              <SparklesIcon className={`h-3.5 w-3.5 ${aiEnabled ? 'animate-pulse' : ''}`} />
+              <span className="hidden sm:inline">AI {aiEnabled ? 'Enabled' : 'Disabled'}</span>
+            </button>
+          )}
+ 
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
@@ -49,7 +66,7 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing }) => {
               </>
             )}
           </button>
-
+ 
           {user && (
             <button
               onClick={logout}
@@ -63,5 +80,5 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing }) => {
     </header>
   );
 };
-
+ 
 export default Header;

@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [isUserDataLoaded, setIsUserDataLoaded] = useState<boolean>(false);
   const [showLanding, setShowLanding] = useState<boolean>(true);
   const [newWatchlistName, setNewWatchlistName] = useState('');
+  const [aiEnabled, setAiEnabled] = useState<boolean>(() => localStorage.getItem('ai_enabled') !== 'false');
 
   // Load user data from Firestore
   useEffect(() => {
@@ -76,25 +77,96 @@ const App: React.FC = () => {
     const upperTicker = ticker.toUpperCase();
     const needsFetch = !stockData[upperTicker];
 
-    if (shares && shares > 0) {
-      await addStock(upperTicker, shares, avgCost || undefined);
+    setError(null);
+    try {
+      if (shares && shares > 0) {
+        await addStock(upperTicker, shares, avgCost || undefined);
+      }
+      if (watchlistName) {
+        await addToWatchlist(upperTicker, watchlistName);
+      }
+      if (needsFetch) {
+        fetchDataForTickers([upperTicker]);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to add stock. Please try again.');
     }
+  };
 
-    if (watchlistName) {
+  const handleAddTickerToWatchlist = async (ticker: string, watchlistName: string) => {
+    if (!user) return;
+    const upperTicker = ticker.toUpperCase();
+    const needsFetch = !stockData[upperTicker];
+
+    setError(null);
+    try {
       await addToWatchlist(upperTicker, watchlistName);
+      if (needsFetch) {
+        fetchDataForTickers([upperTicker]);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to add ticker to watchlist.');
+      throw err;
     }
+  };
 
-    if (needsFetch) {
-      fetchDataForTickers([upperTicker]);
+  const handleRemovePortfolioStock = async (ticker: string) => {
+    setError(null);
+    try {
+      await removeStock(ticker);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove stock.');
+    }
+  };
+
+  const handleRemoveFromWatchlist = async (ticker: string, watchlistName: string) => {
+    setError(null);
+    try {
+      await removeFromWatchlist(ticker, watchlistName);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove stock from watchlist.');
+    }
+  };
+
+  const handleDeleteWatchlist = async (watchlistName: string) => {
+    setError(null);
+    try {
+      await deleteWatchlist(watchlistName);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete watchlist.');
+    }
+  };
+
+  const handleRenameWatchlist = async (oldName: string, newName: string) => {
+    setError(null);
+    try {
+      const success = await renameWatchlist(oldName, newName);
+      return success;
+    } catch (err: any) {
+      setError(err.message || 'Failed to rename watchlist.');
+      return false;
     }
   };
 
   const handleCreateWatchlist = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await createWatchlist(newWatchlistName);
-    if (success) {
-      setNewWatchlistName('');
+    setError(null);
+    try {
+      const success = await createWatchlist(newWatchlistName);
+      if (success) {
+        setNewWatchlistName('');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to create watchlist.');
     }
+  };
+
+  const handleToggleAi = () => {
+    setAiEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('ai_enabled', String(next));
+      return next;
+    });
   };
 
   const handleRefreshAll = async () => {
@@ -121,20 +193,25 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen">
-      <Header onRefresh={handleRefreshAll} isRefreshing={isRefreshing} />
-
+      <Header 
+        onRefresh={handleRefreshAll} 
+        isRefreshing={isRefreshing} 
+        aiEnabled={aiEnabled}
+        onToggleAi={handleToggleAi}
+      />
+ 
       <main className="container mx-auto p-4 md:p-6 max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-5">
             <AddStockForm onAddStock={handleAddStock} watchlistNames={Object.keys(watchlists)} />
-
+ 
             {error && (
               <div className="bg-loss-bg border border-loss-border text-loss px-4 py-3 rounded-lg text-sm animate-slide-down" role="alert">
                 {error}
               </div>
             )}
-
+ 
             {isInitialLoading ? (
               <div className="flex justify-center items-center h-64">
                 <LoadingIcon />
@@ -142,12 +219,12 @@ const App: React.FC = () => {
               </div>
             ) : (
               <>
-                <Portfolio holdings={portfolio} data={stockData} onRemove={removeStock} />
-                <Insights portfolio={portfolio} data={stockData} />
+                <Portfolio holdings={portfolio} data={stockData} onRemove={handleRemovePortfolioStock} />
+                {aiEnabled && <Insights portfolio={portfolio} data={stockData} />}
               </>
             )}
           </div>
-
+ 
           {/* Sidebar */}
           <div className="space-y-5">
             {Object.entries(watchlists).map(([name, tickers]) => (
@@ -156,12 +233,13 @@ const App: React.FC = () => {
                 name={name}
                 tickers={tickers}
                 data={stockData}
-                onRemove={(ticker) => removeFromWatchlist(ticker, name)}
-                onDelete={() => deleteWatchlist(name)}
-                onRename={(newName) => renameWatchlist(name, newName)}
+                onRemove={(ticker) => handleRemoveFromWatchlist(ticker, name)}
+                onDelete={() => handleDeleteWatchlist(name)}
+                onRename={(newName) => handleRenameWatchlist(name, newName)}
+                onAddTicker={(ticker) => handleAddTickerToWatchlist(ticker, name)}
               />
             ))}
-
+ 
             {/* Create New Watchlist */}
             <div className="card">
               <h3 className="text-sm font-semibold text-text-primary mb-3">New Watchlist</h3>

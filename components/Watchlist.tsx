@@ -10,12 +10,14 @@ interface WatchlistProps {
   onRemove: (ticker: string) => void;
   onRename: (newName: string) => void;
   onDelete: () => void;
+  onAddTicker: (ticker: string) => Promise<any>;
 }
 
-const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, onRename, onDelete }) => {
+const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, onRename, onDelete, onAddTicker }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameValue, setRenameValue] = useState(name);
+  const [newTicker, setNewTicker] = useState('');
 
   const handleRenameSubmit = useCallback(() => {
     if (renameValue.trim() && renameValue.trim() !== name) {
@@ -28,6 +30,19 @@ const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, on
     onDelete();
     setShowDeleteModal(false);
   }, [onDelete]);
+
+  const handleAddTickerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ticker = newTicker.trim().toUpperCase();
+    if (!ticker) return;
+    try {
+      await onAddTicker(ticker);
+      setNewTicker('');
+    } catch (err) {
+      // Handled by parent
+    }
+  };
+
 
   return (
     <>
@@ -63,6 +78,18 @@ const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, on
             </p>
           )}
         </div>
+        <form onSubmit={handleAddTickerSubmit} className="flex gap-1.5 mt-3 pt-3 border-t border-pulse-border/40">
+          <input
+            type="text"
+            placeholder="Add ticker (e.g., AAPL)"
+            value={newTicker}
+            onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
+            className="input text-xs flex-grow py-1 px-2 h-7"
+          />
+          <button type="submit" className="btn btn-secondary text-xs h-7 px-2.5 whitespace-nowrap">
+            Add
+          </button>
+        </form>
       </div>
 
       {/* Rename Modal */}
