@@ -7,9 +7,10 @@ interface HeaderProps {
   isRefreshing: boolean;
   aiEnabled: boolean;
   onToggleAi: () => void;
+  isLive?: boolean;
 }
  
-const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onToggleAi }) => {
+const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onToggleAi, isLive = false }) => {
   const { user, logout } = useAuth();
  
   return (
@@ -23,6 +24,13 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onT
           <h1 className="text-lg font-bold tracking-tight text-text-primary">
             StockPulse
           </h1>
+          {/* Live indicator */}
+          {user && (
+            <span className={`live-indicator ${isLive ? 'live-indicator--connected' : 'live-indicator--disconnected'}`}>
+              <span className={`live-dot ${isLive ? 'live-dot--connected' : 'live-dot--disconnected'}`} />
+              {isLive ? 'Live' : 'Offline'}
+            </span>
+          )}
         </div>
  
         {/* Actions */}
@@ -45,7 +53,7 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onT
               title={aiEnabled ? 'Disable AI Insights' : 'Enable AI Insights'}
             >
               <SparklesIcon className={`h-3.5 w-3.5 ${aiEnabled ? 'animate-pulse' : ''}`} />
-              <span className="hidden sm:inline">AI {aiEnabled ? 'Enabled' : 'Disabled'}</span>
+              <span className="hidden sm:inline">AI {aiEnabled ? 'On' : 'Off'}</span>
             </button>
           )}
  
@@ -53,6 +61,7 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onT
             onClick={onRefresh}
             disabled={isRefreshing}
             className="btn btn-secondary btn-sm"
+            title="Refresh all stock prices"
           >
             {isRefreshing ? (
               <>

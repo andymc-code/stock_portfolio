@@ -6,9 +6,10 @@ import Modal from './Modal';
 interface MarketScreenerProps {
   watchlistNames: string[];
   onAddToWatchlist: (ticker: string, watchlistName: string) => Promise<any>;
+  onTickerClick?: (ticker: string) => void;
 }
 
-const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddToWatchlist }) => {
+const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddToWatchlist, onTickerClick }) => {
   const [moversData, setMoversData] = useState<{
     topGainers: MarketMover[];
     topLosers: MarketMover[];
@@ -155,7 +156,12 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 return (
                   <tr key={mover.ticker} className="hover:bg-pulse-surface/20 transition-all">
                     <td className="py-2.5 px-3 font-semibold text-text-primary flex items-center gap-1.5">
-                      <span className="font-mono">{mover.ticker}</span>
+                      <span
+                        className="font-mono cursor-pointer hover:text-accent-primary transition-colors"
+                        onClick={() => onTickerClick?.(mover.ticker)}
+                      >
+                        {mover.ticker}
+                      </span>
                       <button
                         onClick={() => handleOpenAddModal(mover.ticker)}
                         className="p-1 rounded bg-gain-bg/20 text-gain hover:bg-gain/20 transition-colors"

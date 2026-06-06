@@ -1,6 +1,7 @@
 import React from 'react';
 import type { StockData } from '../types';
 import { UpArrowIcon, DownArrowIcon, RemoveIcon } from './icons';
+import SparklineChart from './SparklineChart';
 
 interface StockCardProps {
   ticker: string;
@@ -8,9 +9,10 @@ interface StockCardProps {
   shares?: number;
   avgCost?: number;
   onRemove: (ticker: string) => void;
+  onClick?: (ticker: string) => void;
 }
 
-const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, onRemove }) => {
+const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, onRemove, onClick }) => {
   if (!stock) {
     return (
       <div className="flex items-center justify-between p-3 rounded-lg bg-pulse-surface/50 animate-pulse-soft">
@@ -37,8 +39,19 @@ const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, o
   const totalPnL = shares && avgCost ? (price - avgCost) * shares : null;
   const pnlPercent = avgCost ? ((price - avgCost) / avgCost) * 100 : null;
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger if clicking the remove button
+    if ((e.target as HTMLElement).closest('[data-action="remove"]')) return;
+    onClick?.(ticker);
+  };
+
   return (
-    <div className="group flex items-center justify-between p-3 rounded-lg bg-pulse-surface/30 border border-transparent hover:border-pulse-border hover:bg-pulse-surface/60 transition-all duration-200">
+    <div
+      className={`group flex items-center justify-between p-3 rounded-lg bg-pulse-surface/30 border border-transparent hover:border-pulse-border hover:bg-pulse-surface/60 transition-all duration-200 ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={handleCardClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       {/* Ticker & Shares */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -55,6 +68,11 @@ const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, o
             {avgCost ? ` · Avg $${avgCost.toFixed(2)}` : ''}
           </p>
         )}
+      </div>
+
+      {/* Sparkline Chart */}
+      <div className="hidden sm:block mx-2">
+        <SparklineChart ticker={ticker} isPositive={isUp} width={72} height={28} />
       </div>
 
       {/* Price & Value */}
@@ -76,7 +94,8 @@ const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, o
 
       {/* Remove */}
       <button
-        onClick={() => onRemove(ticker)}
+        data-action="remove"
+        onClick={(e) => { e.stopPropagation(); onRemove(ticker); }}
         className="ml-3 text-text-muted/30 hover:text-loss transition-colors opacity-0 group-hover:opacity-100"
         aria-label={`Remove ${ticker}`}
       >

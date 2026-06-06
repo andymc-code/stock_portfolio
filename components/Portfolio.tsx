@@ -8,9 +8,10 @@ interface PortfolioProps {
   holdings: PortfolioHolding[];
   data: StockDataMap;
   onRemove: (ticker: string) => void;
+  onTickerClick?: (ticker: string) => void;
 }
 
-const Portfolio: React.FC<PortfolioProps> = ({ holdings, data, onRemove }) => {
+const Portfolio: React.FC<PortfolioProps> = ({ holdings, data, onRemove, onTickerClick }) => {
   const [sortField, setSortField] = useState<SortField>('value');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
   const [searchFilter, setSearchFilter] = useState('');
@@ -161,6 +162,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ holdings, data, onRemove }) => {
             shares={holding.shares}
             avgCost={holding.avgCost}
             onRemove={onRemove}
+            onClick={onTickerClick}
           />
         ))}
       </div>

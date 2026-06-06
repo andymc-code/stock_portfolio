@@ -14,13 +14,14 @@ import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { LoadingIcon, PlusIcon } from './components/icons';
 import MarketScreener from './components/MarketScreener';
+import StockDetailModal from './components/StockDetailModal';
 
 const App: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
 
   const { portfolio, initPortfolio, addStock, removeStock, clearPortfolio } = usePortfolio(user?.uid);
   const { watchlists, initWatchlists, addToWatchlist, removeFromWatchlist, createWatchlist, deleteWatchlist, renameWatchlist, clearWatchlists } = useWatchlists(user?.uid);
-  const { stockData, isLoading: isRefreshing, error, fetchDataForTickers, refreshAll, clearData, setError } = useStockData();
+  const { stockData, isLoading: isRefreshing, isLive, error, fetchDataForTickers, refreshAll, clearData, setError } = useStockData();
 
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isUserDataLoaded, setIsUserDataLoaded] = useState<boolean>(false);
@@ -28,6 +29,9 @@ const App: React.FC = () => {
   const [newWatchlistName, setNewWatchlistName] = useState('');
   const [aiEnabled, setAiEnabled] = useState<boolean>(() => localStorage.getItem('ai_enabled') !== 'false');
   const [activeAppTab, setActiveAppTab] = useState<'dashboard' | 'screener'>('dashboard');
+
+  // Stock Detail Modal state
+  const [detailTicker, setDetailTicker] = useState<string | null>(null);
 
   // Load user data from Firestore
   useEffect(() => {
@@ -214,6 +218,7 @@ const App: React.FC = () => {
         isRefreshing={isRefreshing} 
         aiEnabled={aiEnabled}
         onToggleAi={handleToggleAi}
+        isLive={isLive}
       />
 
       {/* Navigation Tabs */}
@@ -264,7 +269,12 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    <Portfolio holdings={portfolio} data={stockData} onRemove={handleRemovePortfolioStock} />
+                    <Portfolio
+                      holdings={portfolio}
+                      data={stockData}
+                      onRemove={handleRemovePortfolioStock}
+                      onTickerClick={(ticker) => setDetailTicker(ticker)}
+                    />
                     {aiEnabled && <Insights portfolio={portfolio} data={stockData} />}
                   </>
                 )}
@@ -272,7 +282,8 @@ const App: React.FC = () => {
             ) : (
               <MarketScreener 
                 watchlistNames={Object.keys(watchlists)} 
-                onAddToWatchlist={handleAddTickerToWatchlist} 
+                onAddToWatchlist={handleAddTickerToWatchlist}
+                onTickerClick={(ticker) => setDetailTicker(ticker)}
               />
             )}
           </div>
@@ -313,6 +324,16 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Stock Detail Modal */}
+      <StockDetailModal
+        ticker={detailTicker || ''}
+        stock={detailTicker ? stockData[detailTicker] : undefined}
+        isOpen={detailTicker !== null}
+        onClose={() => setDetailTicker(null)}
+        onAddToWatchlist={handleAddTickerToWatchlist}
+        watchlistNames={Object.keys(watchlists)}
+      />
     </div>
   );
 };
