@@ -13,6 +13,7 @@ import AddStockForm from './components/AddStockForm';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { LoadingIcon, PlusIcon } from './components/icons';
+import MarketScreener from './components/MarketScreener';
 
 const App: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +27,7 @@ const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState<boolean>(true);
   const [newWatchlistName, setNewWatchlistName] = useState('');
   const [aiEnabled, setAiEnabled] = useState<boolean>(() => localStorage.getItem('ai_enabled') !== 'false');
+  const [activeAppTab, setActiveAppTab] = useState<'dashboard' | 'screener'>('dashboard');
 
   // Load user data from Firestore
   useEffect(() => {
@@ -213,29 +215,65 @@ const App: React.FC = () => {
         aiEnabled={aiEnabled}
         onToggleAi={handleToggleAi}
       />
+
+      {/* Navigation Tabs */}
+      <div className="container mx-auto px-4 md:px-6 mt-4 max-w-7xl">
+        <div className="flex border-b border-pulse-border/40">
+          <button
+            onClick={() => setActiveAppTab('dashboard')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+              activeAppTab === 'dashboard'
+                ? 'border-accent-primary text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
+            }`}
+          >
+            My Portfolio
+          </button>
+          <button
+            onClick={() => setActiveAppTab('screener')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeAppTab === 'screener'
+                ? 'border-accent-primary text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <span>Market Alpha</span>
+            <span className="bg-gain-bg text-gain text-[0.65rem] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">LIVE</span>
+          </button>
+        </div>
+      </div>
  
       <main className="container mx-auto p-4 md:p-6 max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-5">
-            <AddStockForm onAddStock={handleAddStock} watchlistNames={Object.keys(watchlists)} />
- 
-            {error && (
-              <div className="bg-loss-bg border border-loss-border text-loss px-4 py-3 rounded-lg text-sm animate-slide-down" role="alert">
-                {error}
-              </div>
-            )}
- 
-            {isInitialLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <LoadingIcon />
-                <span className="ml-3 text-sm text-text-muted">Loading portfolio…</span>
-              </div>
-            ) : (
+            {activeAppTab === 'dashboard' ? (
               <>
-                <Portfolio holdings={portfolio} data={stockData} onRemove={handleRemovePortfolioStock} />
-                {aiEnabled && <Insights portfolio={portfolio} data={stockData} />}
+                <AddStockForm onAddStock={handleAddStock} watchlistNames={Object.keys(watchlists)} />
+     
+                {error && (
+                  <div className="bg-loss-bg border border-loss-border text-loss px-4 py-3 rounded-lg text-sm animate-slide-down" role="alert">
+                    {error}
+                  </div>
+                )}
+     
+                {isInitialLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <LoadingIcon />
+                    <span className="ml-3 text-sm text-text-muted">Loading portfolio…</span>
+                  </div>
+                ) : (
+                  <>
+                    <Portfolio holdings={portfolio} data={stockData} onRemove={handleRemovePortfolioStock} />
+                    {aiEnabled && <Insights portfolio={portfolio} data={stockData} />}
+                  </>
+                )}
               </>
+            ) : (
+              <MarketScreener 
+                watchlistNames={Object.keys(watchlists)} 
+                onAddToWatchlist={handleAddTickerToWatchlist} 
+              />
             )}
           </div>
  
