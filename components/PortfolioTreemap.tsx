@@ -48,7 +48,8 @@ const CustomizedContent = (props: any) => {
             x={x + width / 2}
             y={y + height / 2 - 2}
             textAnchor="middle"
-            fill="#f1f5f9"
+            fill="#ffffff"
+            stroke="none"
             fontSize={12}
             fontWeight="700"
             fontFamily="'JetBrains Mono', monospace"
@@ -60,9 +61,11 @@ const CustomizedContent = (props: any) => {
               x={x + width / 2}
               y={y + height / 2 + 14}
               textAnchor="middle"
-              fill={changePercent >= 0 ? '#10b981' : '#ef4444'}
+              fill="#ffffff"
+              stroke="none"
               fontSize={10}
               fontFamily="'JetBrains Mono', monospace"
+              style={{ opacity: 0.85 }}
             >
               {changePercent >= 0 ? '+' : ''}{changePercent?.toFixed(1)}%
             </text>
