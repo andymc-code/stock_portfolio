@@ -68,50 +68,71 @@ export const fetchStockData = async (
       {"ticker": "TSLA", "price": 175.66, "prevClose": 177.48}
     `;
 
-    const stream = await ai.models.generateContentStream({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            tools: [{googleSearch: {}}],
-        },
-    });
+    try {
+        const stream = await ai.models.generateContentStream({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                tools: [{googleSearch: {}}],
+            },
+        });
 
-    let buffer = '';
-    for await (const chunk of stream) {
-        buffer += chunk.text;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // The last item might be an incomplete line
+        let buffer = '';
+        for await (const chunk of stream) {
+            buffer += chunk.text;
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // The last item might be an incomplete line
 
-        for (const line of lines) {
-            const parsed = parseJsonLine(line);
-            if (parsed && typeof parsed.ticker === 'string' && typeof parsed.price === 'number' && typeof parsed.prevClose === 'number') {
-                const changeUSD = parsed.price - parsed.prevClose;
-                const changePercent = parsed.prevClose === 0 ? 0 : (changeUSD / parsed.prevClose) * 100;
-                const stock: StockData = {
-                    ticker: parsed.ticker.toUpperCase(),
-                    price: parsed.price,
-                    changeUSD,
-                    changePercent,
-                };
-                onDataChunk(stock);
-                stockDataCache.set(stock.ticker, { data: stock, timestamp: Date.now() });
+            for (const line of lines) {
+                const parsed = parseJsonLine(line);
+                if (parsed && typeof parsed.ticker === 'string' && typeof parsed.price === 'number' && typeof parsed.prevClose === 'number') {
+                    const changeUSD = parsed.price - parsed.prevClose;
+                    const changePercent = parsed.prevClose === 0 ? 0 : (changeUSD / parsed.prevClose) * 100;
+                    const stock: StockData = {
+                        ticker: parsed.ticker.toUpperCase(),
+                        price: parsed.price,
+                        changeUSD,
+                        changePercent,
+                    };
+                    onDataChunk(stock);
+                    stockDataCache.set(stock.ticker, { data: stock, timestamp: Date.now() });
+                }
             }
         }
-    }
 
-    // Process any remaining data in the buffer after the stream ends
-    const parsed = parseJsonLine(buffer);
-    if (parsed && typeof parsed.ticker === 'string' && typeof parsed.price === 'number' && typeof parsed.prevClose === 'number') {
-        const changeUSD = parsed.price - parsed.prevClose;
-        const changePercent = parsed.prevClose === 0 ? 0 : (changeUSD / parsed.prevClose) * 100;
-        const stock: StockData = {
-            ticker: parsed.ticker.toUpperCase(),
-            price: parsed.price,
-            changeUSD,
-            changePercent,
-        };
-        onDataChunk(stock);
-        stockDataCache.set(stock.ticker, { data: stock, timestamp: Date.now() });
+        // Process any remaining data in the buffer after the stream ends
+        const parsed = parseJsonLine(buffer);
+        if (parsed && typeof parsed.ticker === 'string' && typeof parsed.price === 'number' && typeof parsed.prevClose === 'number') {
+            const changeUSD = parsed.price - parsed.prevClose;
+            const changePercent = parsed.prevClose === 0 ? 0 : (changeUSD / parsed.prevClose) * 100;
+            const stock: StockData = {
+                ticker: parsed.ticker.toUpperCase(),
+                price: parsed.price,
+                changeUSD,
+                changePercent,
+            };
+            onDataChunk(stock);
+            stockDataCache.set(stock.ticker, { data: stock, timestamp: Date.now() });
+        }
+    } catch (error: any) {
+        console.warn("Gemini API error (could be 503 or quota limits). Falling back to mock price data.", error);
+        // Simulate stock prices so the UI doesn't crash or display loading state forever
+        for (const ticker of tickersToFetch) {
+            const mockPrice = Math.floor(Math.random() * 200) + 50;
+            const mockPrevClose = mockPrice * (1 + (Math.random() * 0.04 - 0.02)); // +/- 2% change
+            const changeUSD = mockPrice - mockPrevClose;
+            const changePercent = (changeUSD / mockPrevClose) * 100;
+            const stock: StockData = {
+                ticker: ticker.toUpperCase(),
+                price: mockPrice,
+                changeUSD,
+                changePercent,
+            };
+            onDataChunk(stock);
+            // We cache mock data briefly (15 seconds) so it tries Gemini again next refresh
+            stockDataCache.set(stock.ticker, { data: stock, timestamp: Date.now() - CACHE_DURATION_MS + 15000 });
+        }
+        throw new Error("Gemini API is currently overloaded or experiencing high demand. Showing mock prices.");
     }
 };
 

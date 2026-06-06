@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { getUserData } from './services/firestoreService';
+import { getUserData, saveUserData } from './services/firestoreService';
 import { usePortfolio } from './hooks/usePortfolio';
 import { useWatchlists } from './hooks/useWatchlists';
 import { useStockData } from './hooks/useStockData';
@@ -79,12 +79,26 @@ const App: React.FC = () => {
 
     setError(null);
     try {
+      const skipSave = !!(shares && shares > 0 && watchlistName);
+      let updatedPortfolio = portfolio;
+      let updatedWatchlists = watchlists;
+
       if (shares && shares > 0) {
-        await addStock(upperTicker, shares, avgCost || undefined);
+        const res = await addStock(upperTicker, shares, avgCost || undefined, skipSave);
+        if (res) updatedPortfolio = res;
       }
       if (watchlistName) {
-        await addToWatchlist(upperTicker, watchlistName);
+        const res = await addToWatchlist(upperTicker, watchlistName, skipSave);
+        if (res) updatedWatchlists = res;
       }
+
+      if (skipSave) {
+        await saveUserData(user.uid, {
+          portfolio: updatedPortfolio,
+          watchlists: updatedWatchlists
+        });
+      }
+
       if (needsFetch) {
         fetchDataForTickers([upperTicker]);
       }

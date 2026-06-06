@@ -15,13 +15,16 @@ const AddStockForm: React.FC<AddStockFormProps> = ({ onAddStock, watchlistNames 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    if (watchlistNames.length > 0 && !selectedWatchlist) {
-      setSelectedWatchlist(watchlistNames[0]);
-    }
-    if (watchlistNames.length === 0) {
+    if (watchlistNames.length > 0) {
+      if (!selectedWatchlist || !watchlistNames.includes(selectedWatchlist)) {
+        setSelectedWatchlist(watchlistNames[0]);
+      }
+      setAddToWatchlist(true);
+    } else {
       setAddToWatchlist(false);
+      setSelectedWatchlist('');
     }
-  }, [watchlistNames, selectedWatchlist]);
+  }, [watchlistNames]);
 
   // Auto-clear feedback after 3s
   useEffect(() => {

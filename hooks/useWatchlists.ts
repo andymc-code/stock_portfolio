@@ -15,12 +15,12 @@ export const useWatchlists = (userId: string | undefined) => {
     setWatchlists(data);
   }, []);
 
-  const addToWatchlist = useCallback(async (ticker: string, watchlistName: string) => {
-    if (!userId) return;
+  const addToWatchlist = useCallback(async (ticker: string, watchlistName: string, skipSave = false) => {
+    if (!userId) return watchlists;
     const upperTicker = ticker.toUpperCase();
 
     if (!watchlists[watchlistName] || watchlists[watchlistName].includes(upperTicker)) {
-      return;
+      return watchlists;
     }
 
     const newWatchlists = {
@@ -28,7 +28,9 @@ export const useWatchlists = (userId: string | undefined) => {
       [watchlistName]: [...watchlists[watchlistName], upperTicker],
     };
     setWatchlists(newWatchlists);
-    await saveUserData(userId, { watchlists: newWatchlists });
+    if (!skipSave) {
+      await saveUserData(userId, { watchlists: newWatchlists });
+    }
     return newWatchlists;
   }, [userId, watchlists]);
 

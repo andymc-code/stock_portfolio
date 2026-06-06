@@ -12,8 +12,8 @@ export const usePortfolio = (userId: string | undefined) => {
     setPortfolio(holdings);
   }, []);
 
-  const addStock = useCallback(async (ticker: string, shares: number, avgCost?: number) => {
-    if (!userId) return;
+  const addStock = useCallback(async (ticker: string, shares: number, avgCost?: number, skipSave = false) => {
+    if (!userId) return portfolio;
 
     const upperTicker = ticker.toUpperCase();
     const existing = portfolio.find(p => p.ticker === upperTicker);
@@ -36,7 +36,9 @@ export const usePortfolio = (userId: string | undefined) => {
     }
 
     setPortfolio(newPortfolio);
-    await saveUserData(userId, { portfolio: newPortfolio });
+    if (!skipSave) {
+      await saveUserData(userId, { portfolio: newPortfolio });
+    }
     return newPortfolio;
   }, [userId, portfolio]);
 
