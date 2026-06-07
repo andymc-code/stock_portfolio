@@ -72,7 +72,7 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
     const loadCandles = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchCandleData(ticker, selectedRange);
+        const data = await fetchCandleData(ticker, selectedRange, stock?.price);
         if (!cancelled) {
           setCandleData(data);
         }

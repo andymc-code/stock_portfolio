@@ -62,11 +62,12 @@ function getResolutionAndRange(range: TimeRange): { resolution: string; from: nu
  */
 export async function fetchCandleData(
   ticker: string,
-  range: TimeRange
+  range: TimeRange,
+  currentPrice?: number
 ): Promise<CandleData[]> {
   if (!apiKey) {
     console.warn('⚠️ Finnhub API key missing — using simulated candle data');
-    return generateSimulatedCandles(range);
+    return generateSimulatedCandles(range, currentPrice);
   }
 
   const cacheKey = `${ticker.toUpperCase()}_${range}`;
@@ -91,7 +92,7 @@ export async function fetchCandleData(
 
     if (data.s !== 'ok' || !data.c || data.c.length === 0) {
       console.warn(`No candle data for ${ticker} (${range}). Using simulated data.`);
-      return generateSimulatedCandles(range);
+      return generateSimulatedCandles(range, currentPrice);
     }
 
     const candles: CandleData[] = data.t.map((timestamp, i) => ({
@@ -107,14 +108,14 @@ export async function fetchCandleData(
     return candles;
   } catch (error) {
     console.error(`Error fetching candles for ${ticker}:`, error);
-    return generateSimulatedCandles(range);
+    return generateSimulatedCandles(range, currentPrice);
   }
 }
 
 /**
  * Generate simulated candle data as fallback.
  */
-function generateSimulatedCandles(range: TimeRange): CandleData[] {
+function generateSimulatedCandles(range: TimeRange, currentPrice?: number): CandleData[] {
   const { from } = getResolutionAndRange(range);
   const to = Math.floor(Date.now() / 1000);
   
@@ -126,20 +127,32 @@ function generateSimulatedCandles(range: TimeRange): CandleData[] {
     default: interval = 86400; break;      // 1 day
   }
 
-  const candles: CandleData[] = [];
-  let price = 150 + Math.random() * 100;
-
+  const basePrice = currentPrice !== undefined && currentPrice > 0 ? currentPrice : 150 + Math.random() * 100;
+  
+  const times: number[] = [];
   for (let t = from; t <= to; t += interval) {
-    const change = (Math.random() - 0.48) * 3;
-    const open = price;
-    price += change;
-    const close = price;
-    const high = Math.max(open, close) + Math.random() * 2;
-    const low = Math.min(open, close) - Math.random() * 2;
-    const volume = Math.floor(Math.random() * 5000000) + 500000;
-
-    candles.push({ time: t, open, high, low, close, volume });
+    times.push(t);
   }
 
-  return candles;
+  const candles: CandleData[] = [];
+  let price = basePrice;
+
+  // We generate backwards so that the final price ends exactly at currentPrice
+  const tempCandles: CandleData[] = [];
+  let currentVal = price;
+
+  for (let i = times.length - 1; i >= 0; i--) {
+    const t = times[i];
+    const change = (Math.random() - 0.49) * (basePrice * 0.015); // Max 1.5% change per step
+    const close = currentVal;
+    currentVal -= change;
+    const open = currentVal;
+    const high = Math.max(open, close) + Math.random() * (basePrice * 0.005);
+    const low = Math.min(open, close) - Math.random() * (basePrice * 0.005);
+    const volume = Math.floor(Math.random() * 5000000) + 500000;
+
+    tempCandles.push({ time: t, open, high, low, close, volume });
+  }
+
+  return tempCandles.reverse(); // chronologically ordered
 }

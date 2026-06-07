@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { getUserData, saveUserData } from './services/firestoreService';
 import { usePortfolio } from './hooks/usePortfolio';
@@ -32,6 +32,14 @@ const App: React.FC = () => {
 
   // Stock Detail Modal state
   const [detailTicker, setDetailTicker] = useState<string | null>(null);
+
+  const handleTickerClick = useCallback((ticker: string) => {
+    const upperTicker = ticker.toUpperCase();
+    setDetailTicker(upperTicker);
+    if (!stockData[upperTicker]) {
+      fetchDataForTickers([upperTicker]);
+    }
+  }, [stockData, fetchDataForTickers]);
 
   // Load user data from Firestore
   useEffect(() => {
@@ -273,7 +281,7 @@ const App: React.FC = () => {
                       holdings={portfolio}
                       data={stockData}
                       onRemove={handleRemovePortfolioStock}
-                      onTickerClick={(ticker) => setDetailTicker(ticker)}
+                      onTickerClick={handleTickerClick}
                     />
                     {aiEnabled && <Insights portfolio={portfolio} data={stockData} />}
                   </>
@@ -283,7 +291,7 @@ const App: React.FC = () => {
               <MarketScreener 
                 watchlistNames={Object.keys(watchlists)} 
                 onAddToWatchlist={handleAddTickerToWatchlist}
-                onTickerClick={(ticker) => setDetailTicker(ticker)}
+                onTickerClick={handleTickerClick}
               />
             )}
           </div>
@@ -300,6 +308,7 @@ const App: React.FC = () => {
                 onDelete={() => handleDeleteWatchlist(name)}
                 onRename={(newName) => handleRenameWatchlist(name, newName)}
                 onAddTicker={(ticker) => handleAddTickerToWatchlist(ticker, name)}
+                onTickerClick={handleTickerClick}
               />
             ))}
  

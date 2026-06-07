@@ -6,6 +6,7 @@ import { fetchCandleData } from '../services/candleService';
 interface SparklineChartProps {
   ticker: string;
   isPositive: boolean;
+  currentPrice?: number;
   width?: number;
   height?: number;
 }
@@ -17,6 +18,7 @@ interface SparklineChartProps {
 const SparklineChart: React.FC<SparklineChartProps> = ({
   ticker,
   isPositive,
+  currentPrice,
   width = 80,
   height = 32,
 }) => {
@@ -91,7 +93,7 @@ const SparklineChart: React.FC<SparklineChartProps> = ({
 
     const loadData = async () => {
       try {
-        const candles = await fetchCandleData(ticker, '1W');
+        const candles = await fetchCandleData(ticker, '1W', currentPrice);
         if (cancelled || !seriesRef.current) return;
 
         if (candles.length > 0) {
@@ -110,7 +112,7 @@ const SparklineChart: React.FC<SparklineChartProps> = ({
 
     loadData();
     return () => { cancelled = true; };
-  }, [ticker]);
+  }, [ticker, currentPrice]);
 
   return (
     <div

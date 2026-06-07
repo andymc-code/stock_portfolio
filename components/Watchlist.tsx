@@ -11,9 +11,10 @@ interface WatchlistProps {
   onRename: (newName: string) => void;
   onDelete: () => void;
   onAddTicker: (ticker: string) => Promise<any>;
+  onTickerClick?: (ticker: string) => void;
 }
 
-const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, onRename, onDelete, onAddTicker }) => {
+const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, onRename, onDelete, onAddTicker, onTickerClick }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameValue, setRenameValue] = useState(name);
@@ -71,6 +72,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ name, tickers, data, onRemove, on
               ticker={ticker}
               stock={data[ticker]}
               onRemove={onRemove}
+              onClick={onTickerClick}
             />
           )) : (
             <p className="text-xs text-text-muted py-4 text-center">
