@@ -372,6 +372,9 @@ body::before {
 
 /* --- Modal / Dialog --- */
 .modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   background: var(--color-pulse-surface);
   border: 1px solid var(--color-pulse-border);
   border-radius: var(--radius-xl);
@@ -546,6 +549,9 @@ input[type="checkbox"] {
 
 /* --- Stock Detail Modal --- */
 .stock-detail-modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   background: var(--color-pulse-surface);
   border: 1px solid var(--color-pulse-border);
   border-radius: var(--radius-xl);
