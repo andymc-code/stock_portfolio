@@ -121,7 +121,8 @@ const SparklineChart: React.FC<SparklineChartProps> = ({
       style={{
         width: `${width}px`,
         height: `${height}px`,
-        opacity: hasData ? 1 : 0.3,
+        opacity: hasData ? 1 : 0,
+        visibility: hasData ? 'visible' : 'hidden',
         transition: 'opacity 0.3s ease',
       }}
     />

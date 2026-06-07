@@ -1,6 +1,7 @@
 /**
- * Fetches OHLCV (candle) data from Finnhub for charting.
+ * Fetches OHLCV (candle) data from Finnhub for sparkline charts.
  * Uses the /stock/candle endpoint.
+ * Returns empty array if data is unavailable — never generates fake data.
  */
 
 export interface CandleData {
@@ -26,9 +27,23 @@ interface FinnhubCandleResponse {
 
 // Cache candle data to reduce API calls
 const candleCache = new Map<string, { data: CandleData[], timestamp: number }>();
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes (longer cache to reduce rate-limit hits)
 
 const apiKey = import.meta.env.VITE_FINNHUB_API_KEY;
+
+// Simple rate limiter: max 1 request per 500ms
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL_MS = 500;
+
+async function rateLimitedFetch(url: string): Promise<Response> {
+  const now = Date.now();
+  const elapsed = now - lastRequestTime;
+  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
+    await new Promise(r => setTimeout(r, MIN_REQUEST_INTERVAL_MS - elapsed));
+  }
+  lastRequestTime = Date.now();
+  return fetch(url);
+}
 
 /**
  * Returns Finnhub resolution and from-timestamp for a given TimeRange.
@@ -59,15 +74,16 @@ function getResolutionAndRange(range: TimeRange): { resolution: string; from: nu
 
 /**
  * Fetch candle data for a ticker and time range.
+ * Returns empty array if data is unavailable — never generates fake data.
  */
 export async function fetchCandleData(
   ticker: string,
   range: TimeRange,
-  currentPrice?: number
+  _currentPrice?: number
 ): Promise<CandleData[]> {
   if (!apiKey) {
-    console.warn('⚠️ Finnhub API key missing — using simulated candle data');
-    return generateSimulatedCandles(range, currentPrice);
+    console.warn('⚠️ Finnhub API key missing — no candle data available');
+    return [];
   }
 
   const cacheKey = `${ticker.toUpperCase()}_${range}`;
@@ -80,19 +96,20 @@ export async function fetchCandleData(
   const to = Math.floor(Date.now() / 1000);
 
   try {
-    const response = await fetch(
+    const response = await rateLimitedFetch(
       `https://finnhub.io/api/v1/stock/candle?symbol=${ticker.toUpperCase()}&resolution=${resolution}&from=${from}&to=${to}&token=${apiKey}`
     );
 
     if (!response.ok) {
-      throw new Error(`Finnhub candle API returned ${response.status}`);
+      console.warn(`Finnhub candle API returned ${response.status} for ${ticker}`);
+      return [];
     }
 
     const data: FinnhubCandleResponse = await response.json();
 
     if (data.s !== 'ok' || !data.c || data.c.length === 0) {
-      console.warn(`No candle data for ${ticker} (${range}). Using simulated data.`);
-      return generateSimulatedCandles(range, currentPrice);
+      console.warn(`No candle data for ${ticker} (${range}).`);
+      return [];
     }
 
     const candles: CandleData[] = data.t.map((timestamp, i) => ({
@@ -108,51 +125,6 @@ export async function fetchCandleData(
     return candles;
   } catch (error) {
     console.error(`Error fetching candles for ${ticker}:`, error);
-    return generateSimulatedCandles(range, currentPrice);
+    return [];
   }
-}
-
-/**
- * Generate simulated candle data as fallback.
- */
-function generateSimulatedCandles(range: TimeRange, currentPrice?: number): CandleData[] {
-  const { from } = getResolutionAndRange(range);
-  const to = Math.floor(Date.now() / 1000);
-  
-  let interval: number;
-  switch (range) {
-    case '1D': interval = 300; break;      // 5 min
-    case '1W': interval = 900; break;      // 15 min
-    case '1M': interval = 3600; break;     // 1 hour
-    default: interval = 86400; break;      // 1 day
-  }
-
-  const basePrice = currentPrice !== undefined && currentPrice > 0 ? currentPrice : 150 + Math.random() * 100;
-  
-  const times: number[] = [];
-  for (let t = from; t <= to; t += interval) {
-    times.push(t);
-  }
-
-  const candles: CandleData[] = [];
-  let price = basePrice;
-
-  // We generate backwards so that the final price ends exactly at currentPrice
-  const tempCandles: CandleData[] = [];
-  let currentVal = price;
-
-  for (let i = times.length - 1; i >= 0; i--) {
-    const t = times[i];
-    const change = (Math.random() - 0.49) * (basePrice * 0.015); // Max 1.5% change per step
-    const close = currentVal;
-    currentVal -= change;
-    const open = currentVal;
-    const high = Math.max(open, close) + Math.random() * (basePrice * 0.005);
-    const low = Math.min(open, close) - Math.random() * (basePrice * 0.005);
-    const volume = Math.floor(Math.random() * 5000000) + 500000;
-
-    tempCandles.push({ time: t, open, high, low, close, volume });
-  }
-
-  return tempCandles.reverse(); // chronologically ordered
 }

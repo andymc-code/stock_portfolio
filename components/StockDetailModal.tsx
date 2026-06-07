@@ -1,9 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { createChart, ColorType, CrosshairMode, AreaSeries, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
-import type { IChartApi } from 'lightweight-charts';
-import { fetchCandleData, type TimeRange, type CandleData } from '../services/candleService';
 import type { StockData } from '../types';
-import { UpArrowIcon, DownArrowIcon, LoadingIcon } from './icons';
+import { UpArrowIcon, DownArrowIcon } from './icons';
 
 interface StockDetailModalProps {
   ticker: string;
@@ -14,7 +11,31 @@ interface StockDetailModalProps {
   watchlistNames?: string[];
 }
 
-const TIME_RANGES: TimeRange[] = ['1D', '1W', '1M', '3M', '1Y', 'YTD'];
+declare global {
+  interface Window {
+    TradingView: any;
+  }
+}
+
+// Singleton script loader
+let tvScriptPromise: Promise<void> | null = null;
+
+function loadTradingViewScript(): Promise<void> {
+  if (tvScriptPromise) return tvScriptPromise;
+  if (window.TradingView) return Promise.resolve();
+
+  tvScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.id = 'tradingview-widget-script';
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load TradingView script'));
+    document.head.appendChild(script);
+  });
+
+  return tvScriptPromise;
+}
 
 const StockDetailModal: React.FC<StockDetailModalProps> = ({
   ticker,
@@ -26,12 +47,8 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-
-  const [selectedRange, setSelectedRange] = useState<TimeRange>('3M');
-  const [candleData, setCandleData] = useState<CandleData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [chartType, setChartType] = useState<'area' | 'candlestick'>('area');
+  const widgetInstanceRef = useRef<any>(null);
+  const [chartError, setChartError] = useState(false);
 
   // Open/close the native dialog
   useEffect(() => {
@@ -64,177 +81,86 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);
 
-  // Fetch candle data when ticker or range changes
+  // Load TradingView widget when modal opens
   useEffect(() => {
     if (!isOpen || !ticker) return;
-    let cancelled = false;
 
-    const loadCandles = async () => {
-      setIsLoading(true);
+    let cancelled = false;
+    setChartError(false);
+
+    const initChart = async () => {
       try {
-        const data = await fetchCandleData(ticker, selectedRange, stock?.price);
-        if (!cancelled) {
-          setCandleData(data);
-        }
+        await loadTradingViewScript();
+        if (cancelled || !chartContainerRef.current) return;
+
+        // Clear previous widget content
+        chartContainerRef.current.innerHTML = '';
+        widgetInstanceRef.current = null;
+
+        // Create a unique container for this widget instance
+        const containerId = `tv_chart_${Date.now()}`;
+        const widgetDiv = document.createElement('div');
+        widgetDiv.id = containerId;
+        widgetDiv.style.height = '100%';
+        widgetDiv.style.width = '100%';
+        chartContainerRef.current.appendChild(widgetDiv);
+
+        // Small delay to ensure DOM is ready
+        await new Promise(r => setTimeout(r, 50));
+        if (cancelled || !document.getElementById(containerId)) return;
+
+        widgetInstanceRef.current = new window.TradingView.widget({
+          autosize: true,
+          symbol: ticker,
+          interval: 'D',
+          timezone: 'America/New_York',
+          theme: 'dark',
+          style: '1',
+          locale: 'en',
+          enable_publishing: false,
+          allow_symbol_change: false,
+          hide_side_toolbar: false,
+          hide_top_toolbar: false,
+          save_image: false,
+          withdateranges: true,
+          details: true,
+          calendar: false,
+          container_id: containerId,
+          backgroundColor: 'rgba(10, 14, 23, 1)',
+          gridColor: 'rgba(55, 65, 81, 0.15)',
+          toolbar_bg: '#0a0e17',
+          loading_screen: { backgroundColor: '#0a0e17', foregroundColor: '#6366f1' },
+          overrides: {
+            'paneProperties.background': '#0a0e17',
+            'paneProperties.backgroundType': 'solid',
+            'mainSeriesProperties.candleStyle.upColor': '#10b981',
+            'mainSeriesProperties.candleStyle.downColor': '#ef4444',
+            'mainSeriesProperties.candleStyle.borderUpColor': '#10b981',
+            'mainSeriesProperties.candleStyle.borderDownColor': '#ef4444',
+            'mainSeriesProperties.candleStyle.wickUpColor': '#10b981',
+            'mainSeriesProperties.candleStyle.wickDownColor': '#ef4444',
+          },
+        });
       } catch (err) {
-        console.error('Failed to load candle data:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        console.error('Failed to load TradingView chart:', err);
+        if (!cancelled) setChartError(true);
       }
     };
 
-    loadCandles();
-    return () => { cancelled = true; };
-  }, [ticker, selectedRange, isOpen]);
-
-  // Create/update chart when data or chart type changes
-  useEffect(() => {
-    if (!chartContainerRef.current || candleData.length === 0 || !isOpen) return;
-
-    // Remove previous chart
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
-    }
-
-    const container = chartContainerRef.current;
-    const isPositive = candleData.length > 1 
-      ? candleData[candleData.length - 1].close >= candleData[0].open 
-      : true;
-
-    const chart = createChart(container, {
-      width: container.clientWidth,
-      height: 360,
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#64748b',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        fontSize: 11,
-        attributionLogo: false,
-      },
-      grid: {
-        vertLines: { color: 'rgba(55, 65, 81, 0.15)' },
-        horzLines: { color: 'rgba(55, 65, 81, 0.15)' },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: {
-          color: 'rgba(99, 102, 241, 0.4)',
-          labelBackgroundColor: '#6366f1',
-        },
-        horzLine: {
-          color: 'rgba(99, 102, 241, 0.4)',
-          labelBackgroundColor: '#6366f1',
-        },
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(55, 65, 81, 0.3)',
-        scaleMargins: { top: 0.1, bottom: 0.15 },
-      },
-      timeScale: {
-        borderColor: 'rgba(55, 65, 81, 0.3)',
-        timeVisible: selectedRange === '1D' || selectedRange === '1W',
-        secondsVisible: false,
-      },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true },
-      handleScale: { mouseWheel: true, pinch: true },
-    });
-
-    if (chartType === 'candlestick') {
-      const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#10b981',
-        downColor: '#ef4444',
-        borderUpColor: '#10b981',
-        borderDownColor: '#ef4444',
-        wickUpColor: '#10b981',
-        wickDownColor: '#ef4444',
-      });
-
-      candleSeries.setData(
-        candleData.map(c => ({
-          time: c.time as any,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
-      );
-    } else {
-      const areaSeries = chart.addSeries(AreaSeries, {
-        lineColor: isPositive ? '#10b981' : '#ef4444',
-        topColor: isPositive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)',
-        bottomColor: isPositive ? 'rgba(16, 185, 129, 0.01)' : 'rgba(239, 68, 68, 0.01)',
-        lineWidth: 2,
-        priceLineVisible: true,
-        priceLineColor: isPositive ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
-        lastValueVisible: true,
-        crosshairMarkerVisible: true,
-        crosshairMarkerRadius: 4,
-        crosshairMarkerBackgroundColor: isPositive ? '#10b981' : '#ef4444',
-      });
-
-      areaSeries.setData(
-        candleData.map(c => ({
-          time: c.time as any,
-          value: c.close,
-        }))
-      );
-    }
-
-    // Add volume histogram
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: 'rgba(99, 102, 241, 0.2)',
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'volume',
-    });
-
-    chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0 },
-    });
-
-    volumeSeries.setData(
-      candleData.map(c => ({
-        time: c.time as any,
-        value: c.volume,
-        color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)',
-      }))
-    );
-
-    chart.timeScale().fitContent();
-    chartRef.current = chart;
-
-    // Handle resize
-    const observer = new ResizeObserver(() => {
-      if (chartRef.current && container) {
-        chartRef.current.applyOptions({ width: container.clientWidth });
-      }
-    });
-    observer.observe(container);
+    initChart();
 
     return () => {
-      observer.disconnect();
-      chart.remove();
-      chartRef.current = null;
+      cancelled = true;
+      widgetInstanceRef.current = null;
+      if (chartContainerRef.current) {
+        chartContainerRef.current.innerHTML = '';
+      }
     };
-  }, [candleData, chartType, isOpen, selectedRange]);
+  }, [ticker, isOpen]);
 
-  // Calculate stats
   const priceChange = stock ? stock.changeUSD : 0;
   const priceChangePercent = stock ? stock.changePercent : 0;
   const isPositive = priceChange >= 0;
-
-  const rangeHigh = candleData.length > 0 ? Math.max(...candleData.map(c => c.high)) : 0;
-  const rangeLow = candleData.length > 0 ? Math.min(...candleData.map(c => c.low)) : 0;
-  const avgVolume = candleData.length > 0
-    ? candleData.reduce((sum, c) => sum + c.volume, 0) / candleData.length
-    : 0;
-
-  const formatVolume = (vol: number): string => {
-    if (vol >= 1_000_000_000) return `${(vol / 1_000_000_000).toFixed(2)}B`;
-    if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(2)}M`;
-    if (vol >= 1000) return `${(vol / 1000).toFixed(0)}K`;
-    return vol.toString();
-  };
 
   if (!isOpen) return null;
 
@@ -262,82 +188,18 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
           <button className="modal__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        {/* Chart Controls */}
-        <div className="stock-detail-modal__controls">
-          {/* Time range selector */}
-          <div className="flex bg-pulse-bg/85 border border-pulse-border p-0.5 rounded-lg">
-            {TIME_RANGES.map(range => (
-              <button
-                key={range}
-                onClick={() => setSelectedRange(range)}
-                className={`px-2.5 py-1 text-[0.65rem] font-bold rounded-md transition-all ${
-                  selectedRange === range
-                    ? 'bg-accent-primary text-white shadow-md'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-
-          {/* Chart type toggle */}
-          <div className="flex bg-pulse-bg/85 border border-pulse-border p-0.5 rounded-lg">
-            <button
-              onClick={() => setChartType('area')}
-              className={`px-2.5 py-1 text-[0.65rem] font-bold rounded-md transition-all ${
-                chartType === 'area'
-                  ? 'bg-accent-primary text-white shadow-md'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              Area
-            </button>
-            <button
-              onClick={() => setChartType('candlestick')}
-              className={`px-2.5 py-1 text-[0.65rem] font-bold rounded-md transition-all ${
-                chartType === 'candlestick'
-                  ? 'bg-accent-primary text-white shadow-md'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              Candle
-            </button>
-          </div>
-        </div>
-
-        {/* Chart */}
-        <div className="stock-detail-modal__chart">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-[360px]">
-              <LoadingIcon />
-              <span className="ml-2 text-xs text-text-muted">Loading chart data…</span>
+        {/* TradingView Chart */}
+        <div className="stock-detail-modal__chart" style={{ minHeight: '480px' }}>
+          {chartError ? (
+            <div className="flex items-center justify-center h-[480px] text-text-muted text-sm">
+              <span>Unable to load chart. Please try again later.</span>
             </div>
           ) : (
-            <div ref={chartContainerRef} className="w-full" />
+            <div
+              ref={chartContainerRef}
+              style={{ width: '100%', height: '480px' }}
+            />
           )}
-        </div>
-
-        {/* Stats Grid */}
-        <div className="stock-detail-modal__stats">
-          <div className="stat-item">
-            <span className="stat-label">Range High</span>
-            <span className="stat-value">${rangeHigh.toFixed(2)}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Range Low</span>
-            <span className="stat-value">${rangeLow.toFixed(2)}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Avg Volume</span>
-            <span className="stat-value">{formatVolume(avgVolume)}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Daily Change</span>
-            <span className={`stat-value ${isPositive ? 'text-gain' : 'text-loss'}`}>
-              {isPositive ? '+' : ''}{priceChangePercent.toFixed(2)}%
-            </span>
-          </div>
         </div>
 
         {/* Add to Watchlist Quick Action */}
