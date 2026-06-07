@@ -29,7 +29,9 @@ export const useWatchlists = (userId: string | undefined) => {
     };
     setWatchlists(newWatchlists);
     if (!skipSave) {
-      await saveUserData(userId, { watchlists: newWatchlists });
+      saveUserData(userId, { watchlists: newWatchlists }).catch(err => {
+        console.error('Failed to save watchlist:', err);
+      });
     }
     return newWatchlists;
   }, [userId, watchlists]);
@@ -41,7 +43,9 @@ export const useWatchlists = (userId: string | undefined) => {
       [watchlistName]: watchlists[watchlistName].filter(t => t !== ticker),
     };
     setWatchlists(newWatchlists);
-    await saveUserData(userId, { watchlists: newWatchlists });
+    saveUserData(userId, { watchlists: newWatchlists }).catch(err => {
+      console.error('Failed to save watchlist removal:', err);
+    });
     return newWatchlists;
   }, [userId, watchlists]);
 
@@ -52,7 +56,9 @@ export const useWatchlists = (userId: string | undefined) => {
 
     const newWatchlists = { ...watchlists, [trimmed]: [] };
     setWatchlists(newWatchlists);
-    await saveUserData(userId, { watchlists: newWatchlists });
+    saveUserData(userId, { watchlists: newWatchlists }).catch(err => {
+      console.error('Failed to save new watchlist:', err);
+    });
     return true;
   }, [userId, watchlists]);
 
@@ -61,7 +67,9 @@ export const useWatchlists = (userId: string | undefined) => {
     const newWatchlists = { ...watchlists };
     delete newWatchlists[name];
     setWatchlists(newWatchlists);
-    await saveUserData(userId, { watchlists: newWatchlists });
+    saveUserData(userId, { watchlists: newWatchlists }).catch(err => {
+      console.error('Failed to save deleted watchlist:', err);
+    });
   }, [userId, watchlists]);
 
   const renameWatchlist = useCallback(async (oldName: string, newName: string) => {
@@ -73,7 +81,9 @@ export const useWatchlists = (userId: string | undefined) => {
     newWatchlists[trimmed] = newWatchlists[oldName];
     delete newWatchlists[oldName];
     setWatchlists(newWatchlists);
-    await saveUserData(userId, { watchlists: newWatchlists });
+    saveUserData(userId, { watchlists: newWatchlists }).catch(err => {
+      console.error('Failed to save renamed watchlist:', err);
+    });
     return true;
   }, [userId, watchlists]);
 

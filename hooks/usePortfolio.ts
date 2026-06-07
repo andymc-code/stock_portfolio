@@ -37,7 +37,9 @@ export const usePortfolio = (userId: string | undefined) => {
 
     setPortfolio(newPortfolio);
     if (!skipSave) {
-      await saveUserData(userId, { portfolio: newPortfolio });
+      saveUserData(userId, { portfolio: newPortfolio }).catch(err => {
+        console.error('Failed to save portfolio:', err);
+      });
     }
     return newPortfolio;
   }, [userId, portfolio]);
@@ -46,7 +48,9 @@ export const usePortfolio = (userId: string | undefined) => {
     if (!userId) return;
     const newPortfolio = portfolio.filter(p => p.ticker !== ticker);
     setPortfolio(newPortfolio);
-    await saveUserData(userId, { portfolio: newPortfolio });
+    saveUserData(userId, { portfolio: newPortfolio }).catch(err => {
+      console.error('Failed to save portfolio removal:', err);
+    });
     return newPortfolio;
   }, [userId, portfolio]);
 
@@ -56,7 +60,9 @@ export const usePortfolio = (userId: string | undefined) => {
       p.ticker === ticker ? { ...p, shares } : p
     );
     setPortfolio(newPortfolio);
-    await saveUserData(userId, { portfolio: newPortfolio });
+    saveUserData(userId, { portfolio: newPortfolio }).catch(err => {
+      console.error('Failed to save portfolio share update:', err);
+    });
     return newPortfolio;
   }, [userId, portfolio]);
 
