@@ -25,6 +25,8 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
   const [isAdding, setIsAdding] = useState(false);
   const [addFeedback, setAddFeedback] = useState<string | null>(null);
 
+  const timeoutRef = React.useRef<any>(null);
+
   const loadMovers = async () => {
     setLoading(true);
     setError(null);
@@ -40,6 +42,9 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
 
   useEffect(() => {
     loadMovers();
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -49,11 +54,24 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
   }, [watchlistNames, targetWatchlist]);
 
   const handleOpenAddModal = (ticker: string) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     setSelectedTicker(ticker);
     setAddFeedback(null);
     if (watchlistNames.length > 0) {
       setTargetWatchlist(watchlistNames[0]);
     }
+  };
+
+  const handleCloseAddModal = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setSelectedTicker(null);
+    setAddFeedback(null);
   };
 
   const handleConfirmAdd = async () => {
@@ -63,8 +81,12 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
     try {
       await onAddToWatchlist(selectedTicker, targetWatchlist);
       setAddFeedback(`Successfully added ${selectedTicker} to ${targetWatchlist}!`);
-      setTimeout(() => {
+      
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
         setSelectedTicker(null);
+        setAddFeedback(null);
+        timeoutRef.current = null;
       }, 1500);
     } catch (err) {
       setAddFeedback('Failed to add ticker to watchlist.');
@@ -196,11 +218,11 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
       {/* Add To Watchlist Modal */}
       <Modal
         isOpen={selectedTicker !== null}
-        onClose={() => setSelectedTicker(null)}
+        onClose={handleCloseAddModal}
         title={`Add ${selectedTicker} to Watchlist`}
         actions={
           <>
-            <button className="btn btn-secondary text-xs" onClick={() => setSelectedTicker(null)}>
+            <button className="btn btn-secondary text-xs" onClick={handleCloseAddModal}>
               Cancel
             </button>
             <button
