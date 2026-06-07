@@ -62,10 +62,10 @@ export const getUserData = async (uid: string): Promise<UserData | null> => {
 export const saveUserData = async (uid: string, data: Partial<UserData>): Promise<void> => {
   try {
     const userDocRef = doc(db, 'users', uid);
-    await updateDoc(userDocRef, {
+    await setDoc(userDocRef, {
       ...data,
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
   } catch (error) {
     console.error('Failed to save user data:', error);
     throw new Error('Could not save your changes. Please try again.');

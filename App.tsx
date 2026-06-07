@@ -51,6 +51,22 @@ const App: React.FC = () => {
           if (data) {
             initPortfolio(data.portfolio || []);
             initWatchlists(data.watchlists || { 'My First Watchlist': ['AAPL', 'GOOGL'] });
+          } else {
+            // Document doesn't exist yet! Let's initialize it with standard defaults
+            const defaultPortfolio = [
+              { ticker: 'GOOGL', shares: 10 },
+              { ticker: 'TSLA', shares: 15 },
+            ];
+            const defaultWatchlists = {
+              'Tech Giants': ['AAPL', 'NVDA', 'AMZN'],
+              'EV Makers': ['TSLA', 'RIVN', 'LCID'],
+            };
+            initPortfolio(defaultPortfolio);
+            initWatchlists(defaultWatchlists);
+            await saveUserData(user.uid, {
+              portfolio: defaultPortfolio,
+              watchlists: defaultWatchlists,
+            });
           }
         } catch (err) {
           setError('Failed to load your portfolio data. Please try refreshing.');
