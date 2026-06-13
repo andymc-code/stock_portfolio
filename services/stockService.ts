@@ -6,6 +6,30 @@ const apiKey = import.meta.env.VITE_FINNHUB_API_KEY;
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 const stockDataCache = new Map<string, { data: StockData, timestamp: number }>();
 
+export const validateTicker = async (ticker: string): Promise<boolean> => {
+  const upper = ticker.toUpperCase().trim();
+  if (!upper) return false;
+  if (!apiKey) {
+    throw new Error("Finnhub API key is missing. Please configure it in your .env or environment settings.");
+  }
+  try {
+    const response = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${upper}&token=${apiKey}`
+    );
+    if (!response.ok) {
+      throw new Error(`Finnhub status ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.c === 0 && data.pc === 0) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error(`Validation failed for ${upper}:`, error);
+    return false;
+  }
+};
+
 export const fetchStockData = async (
   tickers: string[],
   onDataChunk: (data: StockData) => void
@@ -14,9 +38,7 @@ export const fetchStockData = async (
   if (uniqueTickers.length === 0) return;
 
   if (!apiKey) {
-    console.warn('⚠️ Finnhub API key is missing. Please set VITE_FINNHUB_API_KEY in your env settings. Showing simulated prices.');
-    simulateFallback(uniqueTickers, onDataChunk);
-    throw new Error("Finnhub API key is missing. Please configure it in your Vercel or environment settings.");
+    throw new Error("Finnhub API key is missing. Please configure it in your .env or environment settings.");
   }
 
   const now = Date.now();
@@ -66,31 +88,8 @@ export const fetchStockData = async (
         onDataChunk(stock);
         stockDataCache.set(ticker, { data: stock, timestamp: Date.now() });
       } catch (error: any) {
-        console.warn(`Failed to fetch quote for ${ticker} from Finnhub. Using fallback.`, error);
-        simulateSingleFallback(ticker, onDataChunk);
-        throw new Error(error.message || `Failed to fetch stock data for ${ticker}.`);
+        console.warn(`⚠️ Failed to fetch quote for ${ticker} from Finnhub:`, error.message || error);
       }
     })
   );
-};
-
-const simulateFallback = (tickers: string[], onDataChunk: (data: StockData) => void) => {
-  tickers.forEach(ticker => simulateSingleFallback(ticker, onDataChunk));
-};
-
-const simulateSingleFallback = (ticker: string, onDataChunk: (data: StockData) => void) => {
-  const mockPrice = Math.floor(Math.random() * 200) + 50;
-  const mockPrevClose = mockPrice * (1 + (Math.random() * 0.04 - 0.02));
-  const changeUSD = mockPrice - mockPrevClose;
-  const changePercent = (changeUSD / mockPrevClose) * 100;
-
-  const stock: StockData = {
-    ticker: ticker.toUpperCase(),
-    price: mockPrice,
-    changeUSD,
-    changePercent,
-  };
-  onDataChunk(stock);
-  // Cache mock data very briefly (15 seconds)
-  stockDataCache.set(ticker.toUpperCase(), { data: stock, timestamp: Date.now() - CACHE_DURATION_MS + 15000 });
 };

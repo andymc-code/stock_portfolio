@@ -109,10 +109,25 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
         await new Promise(r => setTimeout(r, 50));
         if (cancelled || !document.getElementById(containerId)) return;
 
+        // Determine exchange prefix (NASDAQ vs NYSE) to ensure TradingView loads extended hours data correctly
+        const getTradingViewSymbol = (symbolStr: string): string => {
+          if (symbolStr.includes(':')) return symbolStr.toUpperCase();
+          const upper = symbolStr.toUpperCase();
+          const nyseTickers = new Set([
+            'BRK.A', 'BRK.B', 'JPM', 'XOM', 'V', 'JNJ', 'LLY', 'TSM', 'WMT', 'UNH',
+            'MA', 'PG', 'HD', 'ORCL', 'BAC', 'ABBV', 'CVX', 'MRK', 'CRM', 'TMO',
+            'DIS', 'MCD', 'CSCO', 'ABT', 'VZ', 'NKE', 'PM', 'ADBE', 'IBM', 'AXP',
+            'UNP', 'T', 'GE', 'PFE', 'LOW', 'RTX', 'WFC', 'C', 'CAT', 'UPS',
+            'HON', 'GS', 'MS', 'BA', 'BMY', 'SBUX', 'DE', 'LMT', 'MMM'
+          ]);
+          return nyseTickers.has(upper) ? `NYSE:${upper}` : `NASDAQ:${upper}`;
+        };
+
         widgetInstanceRef.current = new window.TradingView.widget({
           autosize: true,
-          symbol: ticker,
-          interval: 'D',
+          symbol: getTradingViewSymbol(ticker),
+          interval: '15',
+          extended_hours: 'true',
           timezone: 'America/New_York',
           theme: 'dark',
           style: '1',
@@ -130,9 +145,11 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
           gridColor: 'rgba(55, 65, 81, 0.15)',
           toolbar_bg: '#0a0e17',
           loading_screen: { backgroundColor: '#0a0e17', foregroundColor: '#6366f1' },
+          enabled_features: ["pre_post_market_sessions"],
           overrides: {
             'paneProperties.background': '#0a0e17',
             'paneProperties.backgroundType': 'solid',
+            'mainSeriesProperties.sessionId': 'extended',
             'mainSeriesProperties.candleStyle.upColor': '#10b981',
             'mainSeriesProperties.candleStyle.downColor': '#ef4444',
             'mainSeriesProperties.candleStyle.borderUpColor': '#10b981',

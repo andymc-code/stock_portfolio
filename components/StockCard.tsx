@@ -24,7 +24,11 @@ const StockCard: React.FC<StockCardProps> = ({ ticker, stock, shares, avgCost, o
           <div className="h-4 w-16 skeleton rounded" />
           <div className="h-4 w-20 skeleton rounded" />
         </div>
-        <button className="ml-3 text-text-muted/30 cursor-not-allowed">
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(ticker); }}
+          className="ml-3 text-text-muted/30 hover:text-loss transition-colors"
+          aria-label={`Remove ${ticker}`}
+        >
           <RemoveIcon className="h-4 w-4" />
         </button>
       </div>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { getUserData, saveUserData } from './services/firestoreService';
+import { getUserData, saveUserData, createUserData } from './services/firestoreService';
 import { usePortfolio } from './hooks/usePortfolio';
 import { useWatchlists } from './hooks/useWatchlists';
 import { useStockData } from './hooks/useStockData';
+import { validateTicker } from './services/stockService';
 
 import Header from './components/Header';
 import Portfolio from './components/Portfolio';
@@ -63,10 +64,7 @@ const App: React.FC = () => {
             };
             initPortfolio(defaultPortfolio);
             initWatchlists(defaultWatchlists);
-            await saveUserData(user.uid, {
-              portfolio: defaultPortfolio,
-              watchlists: defaultWatchlists,
-            });
+            await createUserData(user.uid, user.email || '');
           }
         } catch (err) {
           setError('Failed to load your portfolio data. Please try refreshing.');
@@ -104,11 +102,16 @@ const App: React.FC = () => {
   // Handle adding a stock (portfolio + optional watchlist)
   const handleAddStock = async (ticker: string, shares: number | null, avgCost: number | null, watchlistName?: string) => {
     if (!user) return;
-    const upperTicker = ticker.toUpperCase();
+    const upperTicker = ticker.toUpperCase().trim();
     const needsFetch = !stockData[upperTicker];
 
     setError(null);
     try {
+      const isValid = await validateTicker(upperTicker);
+      if (!isValid) {
+        throw new Error(`Symbol "${upperTicker}" is not a recognized ticker.`);
+      }
+
       const skipSave = !!(shares && shares > 0 && watchlistName);
       let updatedPortfolio = portfolio;
       let updatedWatchlists = watchlists;
@@ -139,11 +142,16 @@ const App: React.FC = () => {
 
   const handleAddTickerToWatchlist = async (ticker: string, watchlistName: string) => {
     if (!user) return;
-    const upperTicker = ticker.toUpperCase();
+    const upperTicker = ticker.toUpperCase().trim();
     const needsFetch = !stockData[upperTicker];
 
     setError(null);
     try {
+      const isValid = await validateTicker(upperTicker);
+      if (!isValid) {
+        throw new Error(`Symbol "${upperTicker}" is not a recognized ticker.`);
+      }
+
       await addToWatchlist(upperTicker, watchlistName);
       if (needsFetch) {
         fetchDataForTickers([upperTicker]);
