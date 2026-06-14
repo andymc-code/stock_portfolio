@@ -216,7 +216,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 <th className="py-2.5 px-3 text-right">Chg</th>
                 <th className="py-2.5 px-3 text-right">% Chg</th>
                 <th className="py-2.5 px-3 text-right">Volume</th>
-                <th className="py-2.5 px-3 text-center">Signal / Heat</th>
+                <th className="py-2.5 px-3 text-center" style={{ minWidth: '160px' }}>Signal / Heat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-pulse-border/20 text-xs">
@@ -230,9 +230,12 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 return (
                   <tr
                     key={mover.ticker}
-                    className={`transition-all duration-300 hover:bg-pulse-surface/30 ${
-                      isStagnant ? 'opacity-40 hover:opacity-100' : ''
-                    } ${isHigh ? 'bg-orange-500/5 hover:bg-orange-500/10' : ''}`}
+                    className={`transition-all duration-500 hover:bg-pulse-surface/30 ${
+                      isStagnant ? 'opacity-35 hover:opacity-90' : ''
+                    }`}
+                    style={isHigh ? {
+                      background: `linear-gradient(90deg, transparent 0%, hsla(${signal!.heatScore > 70 ? 25 : 270}, 80%, 50%, 0.06) 50%, transparent 100%)`,
+                    } : undefined}
                   >
                     <td className="py-2.5 px-3 font-semibold text-text-primary flex items-center gap-1.5">
                       <span
@@ -261,13 +264,25 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                     <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                       {formatVolume(mover.volume)}
                     </td>
-                    <td className="py-2.5 px-3 flex justify-center items-center">
+                    <td className="py-2.5 px-3">
                       {signal ? (
-                        <SignalBadge
-                          heatScore={signal.heatScore}
-                          isHighAttention={signal.isHighAttention}
-                          triggers={signal.triggers}
-                        />
+                        <div className="flex items-center justify-center gap-2">
+                          {/* Mini heat bar */}
+                          <div className="hidden sm:block w-12 h-1.5 rounded-full bg-pulse-surface overflow-hidden" title={`Heat: ${signal.heatScore}/100`}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${signal.heatScore}%`,
+                                background: `linear-gradient(90deg, hsl(220, 60%, 40%), hsl(${Math.max(5, 220 - signal.heatScore * 2.15)}, ${60 + signal.heatScore * 0.35}%, ${35 + signal.heatScore * 0.2}%))`,
+                              }}
+                            />
+                          </div>
+                          <SignalBadge
+                            heatScore={signal.heatScore}
+                            isHighAttention={signal.isHighAttention}
+                            triggers={signal.triggers}
+                          />
+                        </div>
                       ) : (
                         <span className="text-[0.65rem] text-text-muted font-mono">CALC...</span>
                       )}
