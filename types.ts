@@ -27,3 +27,22 @@ export interface PortfolioHoldingWithValue extends PortfolioHolding {
 
 export type SortField = 'ticker' | 'value' | 'changePercent' | 'pnl';
 export type SortDirection = 'asc' | 'desc';
+
+export interface StockSignal {
+  ticker: string;
+  heatScore: number;          // 1-100
+  isHighAttention: boolean;
+  isStagnant: boolean;
+  triggers: {
+    unusualVolume: boolean;    // Vol > 200% of 20d avg
+    nearExtreme: boolean;      // Price within 2% of 52w High/Low
+    volatilitySpike: boolean;  // High range movement
+  };
+  metrics: {
+    volumeRatio: number;       // Current Vol / 20d avg
+    distTo52wExtreme: number;  // min % distance to 52w High or Low
+    dailyRange: number;        // (High - Low) / Close %
+  };
+}
+
+export type ScreenerViewMode = 'table' | 'grid';

@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { fetchMarketMovers, MarketMover } from '../services/marketService';
 import { LoadingIcon, PlusIcon, SparklesIcon } from './icons';
 import Modal from './Modal';
+import { useSignals } from '../hooks/useSignals';
+import SignalBadge from './SignalBadge';
+import SparklineChart from './SparklineChart';
+import type { ScreenerViewMode } from '../types';
 
 interface MarketScreenerProps {
   watchlistNames: string[];
@@ -17,6 +21,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'active' | 'gainers' | 'losers'>('active');
+  const [viewMode, setViewMode] = useState<ScreenerViewMode>('table');
   const [error, setError] = useState<string | null>(null);
 
   // Add to Watchlist modal state
@@ -105,50 +110,92 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
     return vol.toString();
   };
 
-  const getActiveList = (): MarketMover[] => {
+  const getRawActiveList = (): MarketMover[] => {
     if (!moversData) return [];
     if (activeTab === 'gainers') return moversData.topGainers;
     if (activeTab === 'losers') return moversData.topLosers;
     return moversData.mostActive;
   };
 
+  // Get active signals
+  const activeList = getRawActiveList();
+  const { signals } = useSignals(activeList);
+
+  // Auto-sort list:
+  // 1. High Attention pins to the top.
+  // 2. Then ordered by heatScore descending.
+  const sortedList = [...activeList].sort((a, b) => {
+    const sigA = signals[a.ticker.toUpperCase()];
+    const sigB = signals[b.ticker.toUpperCase()];
+    if (!sigA && !sigB) return 0;
+    if (!sigA) return 1;
+    if (!sigB) return -1;
+
+    if (sigA.isHighAttention && !sigB.isHighAttention) return -1;
+    if (!sigA.isHighAttention && sigB.isHighAttention) return 1;
+
+    return sigB.heatScore - sigA.heatScore;
+  });
+
   return (
     <div className="card w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-pulse-border/40">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-pulse-border/40">
         <div>
           <div className="flex items-center gap-2">
             <SparklesIcon className="h-4.5 w-4.5 text-accent-primary animate-pulse" />
             <h2 className="text-base font-bold text-text-primary">Market Movers Alpha</h2>
           </div>
-          <p className="text-xs text-text-muted mt-0.5">Spot breakout movers, high-volume plays, and daily gainers.</p>
+          <p className="text-xs text-text-muted mt-0.5">Spot breakout movers, high-volume plays, and real-time alerts.</p>
         </div>
 
-        {/* Tab Buttons */}
-        <div className="flex bg-pulse-bg/85 border border-pulse-border p-1 rounded-lg self-start">
-          <button
-            onClick={() => setActiveTab('active')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeTab === 'active' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            Most Active
-          </button>
-          <button
-            onClick={() => setActiveTab('gainers')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeTab === 'gainers' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            Gainers
-          </button>
-          <button
-            onClick={() => setActiveTab('losers')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeTab === 'losers' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            Losers
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex bg-pulse-bg/85 border border-pulse-border p-1 rounded-lg">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-2 py-0.5 rounded text-[0.68rem] font-semibold transition-all ${
+                viewMode === 'table' ? 'bg-pulse-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-2 py-0.5 rounded text-[0.68rem] font-semibold transition-all ${
+                viewMode === 'grid' ? 'bg-pulse-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Grid Cards
+            </button>
+          </div>
+
+          {/* Tab Buttons */}
+          <div className="flex bg-pulse-bg/85 border border-pulse-border p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                activeTab === 'active' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setActiveTab('gainers')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                activeTab === 'gainers' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Gainers
+            </button>
+            <button
+              onClick={() => setActiveTab('losers')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                activeTab === 'losers' ? 'bg-accent-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Losers
+            </button>
+          </div>
         </div>
       </div>
 
@@ -159,7 +206,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
         </div>
       ) : error ? (
         <div className="text-xs text-loss py-4 text-center">{error}</div>
-      ) : (
+      ) : viewMode === 'table' ? (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -169,14 +216,24 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 <th className="py-2.5 px-3 text-right">Chg</th>
                 <th className="py-2.5 px-3 text-right">% Chg</th>
                 <th className="py-2.5 px-3 text-right">Volume</th>
-                <th className="py-2.5 px-3 text-center">Alerts</th>
+                <th className="py-2.5 px-3 text-center">Signal / Heat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-pulse-border/20 text-xs">
-              {getActiveList().map((mover) => {
+              {sortedList.map((mover) => {
                 const isUp = mover.changePercent >= 0;
+                const ticker = mover.ticker.toUpperCase();
+                const signal = signals[ticker];
+                const isStagnant = signal?.isStagnant;
+                const isHigh = signal?.isHighAttention;
+
                 return (
-                  <tr key={mover.ticker} className="hover:bg-pulse-surface/20 transition-all">
+                  <tr
+                    key={mover.ticker}
+                    className={`transition-all duration-300 hover:bg-pulse-surface/30 ${
+                      isStagnant ? 'opacity-40 hover:opacity-100' : ''
+                    } ${isHigh ? 'bg-orange-500/5 hover:bg-orange-500/10' : ''}`}
+                  >
                     <td className="py-2.5 px-3 font-semibold text-text-primary flex items-center gap-1.5">
                       <span
                         className="font-mono cursor-pointer hover:text-accent-primary transition-colors"
@@ -204,14 +261,108 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                     <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                       {formatVolume(mover.volume)}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-text-muted/50">
-                      {mover.volume > 50000000 ? '🔥' : 'N'}
+                    <td className="py-2.5 px-3 flex justify-center items-center">
+                      {signal ? (
+                        <SignalBadge
+                          heatScore={signal.heatScore}
+                          isHighAttention={signal.isHighAttention}
+                          triggers={signal.triggers}
+                        />
+                      ) : (
+                        <span className="text-[0.65rem] text-text-muted font-mono">CALC...</span>
+                      )}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      ) : (
+        /* Grid Cards View */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {sortedList.map((mover) => {
+            const isUp = mover.changePercent >= 0;
+            const ticker = mover.ticker.toUpperCase();
+            const signal = signals[ticker];
+            const isStagnant = signal?.isStagnant;
+            const isHigh = signal?.isHighAttention;
+
+            return (
+              <div
+                key={mover.ticker}
+                onClick={() => onTickerClick?.(mover.ticker)}
+                className={`card p-4 flex flex-col justify-between cursor-pointer border relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${
+                  isStagnant ? 'opacity-40 hover:opacity-100' : ''
+                } ${
+                  isHigh 
+                    ? 'border-orange-500/50 bg-gradient-to-br from-pulse-surface to-orange-500/5 shadow-[0_0_20px_rgba(249,115,22,0.1)]' 
+                    : 'border-pulse-border hover:border-pulse-border-focus'
+                }`}
+              >
+                {/* Header info */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-mono text-sm font-bold text-text-primary hover:text-accent-primary transition-colors">
+                      {mover.ticker}
+                    </span>
+                    <p className="text-[0.65rem] text-text-muted uppercase font-mono mt-0.5">
+                      Vol: {formatVolume(mover.volume)}
+                    </p>
+                  </div>
+                  {signal ? (
+                    <SignalBadge
+                      heatScore={signal.heatScore}
+                      isHighAttention={signal.isHighAttention}
+                      triggers={signal.triggers}
+                    />
+                  ) : (
+                    <span className="text-[0.65rem] text-text-muted font-mono">...</span>
+                  )}
+                </div>
+
+                {/* Price and Sparkline Row */}
+                <div className="flex items-center justify-between mt-3 mb-2">
+                  <div>
+                    <span className="text-base font-bold font-mono text-text-secondary">
+                      ${mover.price.toFixed(2)}
+                    </span>
+                    <span className={`block text-[0.68rem] font-bold font-mono ${isUp ? 'text-gain' : 'text-loss'}`}>
+                      {isUp ? '+' : ''}{mover.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <SparklineChart
+                      ticker={mover.ticker}
+                      isPositive={isUp}
+                      currentPrice={mover.price}
+                      width={90}
+                      height={30}
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Quick Action */}
+                <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-pulse-border/20">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenAddModal(mover.ticker);
+                    }}
+                    className="text-[0.68rem] font-semibold text-gain bg-gain-bg/20 hover:bg-gain/20 px-2 py-0.5 rounded flex items-center gap-1 transition-all"
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                    Watchlist
+                  </button>
+                  {isHigh && (
+                    <span className="text-[0.6rem] font-bold text-orange-400 font-mono animate-pulse uppercase tracking-wider">
+                      ⚠️ Spike Alert
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
