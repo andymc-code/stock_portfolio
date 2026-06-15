@@ -245,9 +245,12 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
             </thead>
             <tbody className="divide-y divide-pulse-border/20 text-xs">
               {displayedList.map((mover) => {
-                const isUp = mover.changePercent >= 0;
                 const ticker = mover.ticker.toUpperCase();
                 const signal = signals[ticker];
+                const displayPrice = signal?.price ?? mover.price;
+                const displayChangeUSD = signal?.changeUSD ?? mover.changeUSD;
+                const displayChangePercent = signal?.changePercent ?? mover.changePercent;
+                const isUp = displayChangePercent >= 0;
                 const isStagnant = signal?.isStagnant;
                 const isHigh = signal?.isHighAttention;
                 const isGhost = signal ? signal.dollarVolume < DISPLAY_DOLLAR_VOL_FLOOR : false;
@@ -293,13 +296,13 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-text-secondary">
-                      ${mover.price.toFixed(2)}
+                      ${displayPrice.toFixed(2)}
                     </td>
                     <td className={`py-2.5 px-3 text-right font-mono ${isUp ? 'text-gain' : 'text-loss'}`}>
-                      {isUp ? '+' : ''}{mover.changeUSD.toFixed(2)}
+                      {isUp ? '+' : ''}{displayChangeUSD.toFixed(2)}
                     </td>
                     <td className={`py-2.5 px-3 text-right font-mono font-semibold ${isUp ? 'text-gain' : 'text-loss'}`}>
-                      {isUp ? '+' : ''}{mover.changePercent.toFixed(2)}%
+                      {isUp ? '+' : ''}{displayChangePercent.toFixed(2)}%
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                       {formatVolume(mover.volume)}
@@ -337,9 +340,11 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
         /* Grid Cards View */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {displayedList.map((mover) => {
-            const isUp = mover.changePercent >= 0;
             const ticker = mover.ticker.toUpperCase();
             const signal = signals[ticker];
+            const displayPrice = signal?.price ?? mover.price;
+            const displayChangePercent = signal?.changePercent ?? mover.changePercent;
+            const isUp = displayChangePercent >= 0;
             const isStagnant = signal?.isStagnant;
             const isHigh = signal?.isHighAttention;
             const isGhost = signal ? signal.dollarVolume < DISPLAY_DOLLAR_VOL_FLOOR : false;
@@ -390,17 +395,17 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 <div className="flex items-center justify-between mt-3 mb-2">
                   <div>
                     <span className="text-base font-bold font-mono text-text-secondary">
-                      ${mover.price.toFixed(2)}
+                      ${displayPrice.toFixed(2)}
                     </span>
                     <span className={`block text-[0.68rem] font-bold font-mono ${isUp ? 'text-gain' : 'text-loss'}`}>
-                      {isUp ? '+' : ''}{mover.changePercent.toFixed(2)}%
+                      {isUp ? '+' : ''}{displayChangePercent.toFixed(2)}%
                     </span>
                   </div>
                   <div onClick={(e) => e.stopPropagation()}>
                     <SparklineChart
                       ticker={mover.ticker}
                       isPositive={isUp}
-                      currentPrice={mover.price}
+                      currentPrice={displayPrice}
                       width={90}
                       height={30}
                     />

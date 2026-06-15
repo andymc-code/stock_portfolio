@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { StockSignal } from '../types';
 import { finnhubSocket } from '../services/finnhubSocket';
 import type { MarketMover } from '../services/marketService';
+import { fetchStockData } from '../services/stockService';
 
 interface HistoricalStats {
   avgVolume20D: number;
@@ -190,6 +191,11 @@ export const useSignals = (movers: MarketMover[]) => {
 
     const isStagnant = heatScore < 25 && dailyRange < 1.0;
 
+    const signedChangePercent = changePercent !== undefined
+      ? changePercent
+      : (stats.prevClose > 0 ? ((currentPrice - stats.prevClose) / stats.prevClose) * 100 : 0);
+    const changeUSD = currentPrice - stats.prevClose;
+
     return {
       ticker,
       heatScore,
@@ -199,6 +205,9 @@ export const useSignals = (movers: MarketMover[]) => {
       dollarVolume,
       liquidityAdjustedMove,
       priceBandPenalty: pricePenalty,
+      price: currentPrice,
+      changeUSD,
+      changePercent: signedChangePercent,
       triggers: { unusualVolume, nearExtreme, volatilitySpike },
       metrics: { volumeRatio, distTo52wExtreme, dailyRange },
     };
@@ -219,6 +228,20 @@ export const useSignals = (movers: MarketMover[]) => {
     });
     signalsRef.current = initialSignals;
     setSignals(initialSignals);
+
+    // Fetch real-time quotes from Finnhub REST API in the background on load
+    fetchStockData(tickers, (updatedStock) => {
+      const ticker = updatedStock.ticker.toUpperCase();
+      const mover = movers.find(m => m.ticker.toUpperCase() === ticker);
+      if (!mover) return;
+
+      const newSignal = calculateSignal(ticker, updatedStock.price, mover.volume, updatedStock.changePercent);
+      setSignals(prev => {
+        const updated = { ...prev, [ticker]: newSignal };
+        signalsRef.current = updated;
+        return updated;
+      });
+    }).catch(err => console.warn('Error fetching initial REST quotes:', err));
 
     // Live updates
     const unsubscribe = finnhubSocket.addHandler((update) => {

@@ -37,6 +37,9 @@ export interface StockSignal {
   dollarVolume: number;       // price × volume — raw liquidity measure
   liquidityAdjustedMove: number; // %change weighted by log10(dollarVol)
   priceBandPenalty: number;   // 0-1 multiplier (1 = no penalty, 0 = full penalty)
+  price?: number;             // Real-time price
+  changeUSD?: number;         // Real-time USD change
+  changePercent?: number;     // Real-time percent change
   triggers: {
     unusualVolume: boolean;    // Vol > 180% of 20d avg
     nearExtreme: boolean;      // Price within 3% of 52w High/Low
