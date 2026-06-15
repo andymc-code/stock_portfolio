@@ -159,6 +159,8 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
     return sigB.heatScore - sigA.heatScore;
   });
 
+  const displayedList = sortedList.slice(0, 30);
+
   return (
     <div className="card w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-pulse-border/40">
@@ -242,7 +244,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
               </tr>
             </thead>
             <tbody className="divide-y divide-pulse-border/20 text-xs">
-              {sortedList.map((mover) => {
+              {displayedList.map((mover) => {
                 const isUp = mover.changePercent >= 0;
                 const ticker = mover.ticker.toUpperCase();
                 const signal = signals[ticker];
@@ -334,7 +336,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
       ) : (
         /* Grid Cards View */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {sortedList.map((mover) => {
+          {displayedList.map((mover) => {
             const isUp = mover.changePercent >= 0;
             const ticker = mover.ticker.toUpperCase();
             const signal = signals[ticker];
