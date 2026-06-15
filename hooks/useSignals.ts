@@ -11,14 +11,51 @@ interface HistoricalStats {
   estimatedIV: number;
 }
 
+// --- Constants ---
+const MIN_DOLLAR_VOLUME = 500_000;  // $500K floor — anything below is "ghost volume"
+const DOLLAR_VOL_LOG_NORMALIZER = 7; // log10($10M) ≈ 7, normalizes the liquidity-weighted move
+
 /**
- * Custom hook to calculate real-time Heat Scores and attention signals.
+ * Detect warrants, units, and rights:
+ * - Ends with W (ALFUW, NXGLW, ZOOZW, SWVLW, GPATW, IVDAW)
+ * - Contains + (OPFI+, GRAF+)
+ * - Ends with WS (warrant subscription)
+ * - Ends with R (rights)
+ * - Ends with U (units, less common)
+ */
+function isWarrantTicker(ticker: string): boolean {
+  const t = ticker.toUpperCase().trim();
+  if (t.includes('+')) return true;
+  if (/W$/.test(t) && t.length > 2) return true;     // ends in W, but not 1-2 char tickers like "W"
+  if (/WS$/.test(t)) return true;
+  return false;
+}
+
+/**
+ * Price band penalty multiplier:
+ * - Sub-$0.10:   0.15 (85% penalty — virtually untradeable)
+ * - $0.10–$0.50: 0.40 (60% penalty — massive spreads)
+ * - $0.50–$1.00: 0.70 (30% penalty — still risky)
+ * - $1.00–$3.00: 0.90 (10% penalty — micro-cap but tradeable)
+ * - $3.00+:      1.00 (no penalty)
+ */
+function getPriceBandPenalty(price: number): number {
+  if (price < 0.10) return 0.15;
+  if (price < 0.50) return 0.40;
+  if (price < 1.00) return 0.70;
+  if (price < 3.00) return 0.90;
+  return 1.0;
+}
+
+/**
+ * Custom hook to calculate real-time Heat Scores with liquidity-aware scoring.
  *
- * Key improvements over v1:
- * - Uses the mover's actual changePercent to seed volatility more accurately
- * - High-Attention triggers when score > 70 OR 2+ triggers fire (was all-3)
- * - Stagnant threshold raised to heatScore < 25 for better visual separation
- * - Heat Score formula uses exponential curves for more spread
+ * V3 improvements:
+ * - Dollar volume floor ($500K) to eliminate ghost movers
+ * - Volume-weighted % move: (%change × log10(dollarVol)) / normalizer
+ * - Warrant/OTC detection and penalty
+ * - Price band weighting — sub-$0.10 gets 85% penalty
+ * - Exponential curves for heat score distribution
  */
 export const useSignals = (movers: MarketMover[]) => {
   const [signals, setSignals] = useState<{ [ticker: string]: StockSignal }>({});
@@ -35,21 +72,16 @@ export const useSignals = (movers: MarketMover[]) => {
     movers.forEach(mover => {
       const ticker = mover.ticker.toUpperCase();
       if (!newStats[ticker]) {
-        // Use the actual change percent to estimate daily volatility
         const absChange = Math.abs(mover.changePercent);
 
-        // Seed the 20d avg volume slightly below current volume for gainers/losers
-        // (they are on the movers list BECAUSE volume is unusual today)
-        const avgVol = mover.volume * (0.3 + Math.random() * 0.4); // 30-70% of today's vol
+        // Movers are on the list BECAUSE volume is unusual — seed avg below today's vol
+        const avgVol = mover.volume * (0.3 + Math.random() * 0.4);
 
-        // 52-week range: use price + change to estimate proximity
-        // Gainers with huge % moves are likely near 52w highs
         const high52W = absChange > 20
-          ? mover.price * (1.0 + Math.random() * 0.05) // Very close to high
+          ? mover.price * (1.0 + Math.random() * 0.05)
           : mover.price * (1.05 + Math.random() * 0.4);
         const low52W = mover.price * (0.4 + Math.random() * 0.3);
 
-        // Estimated IV correlates with how much the stock is actually moving
         const estimatedIV = Math.min(15 + absChange * 1.5 + Math.random() * 15, 80);
 
         newStats[ticker] = {
@@ -68,7 +100,12 @@ export const useSignals = (movers: MarketMover[]) => {
     }
   }, [movers]);
 
-  const calculateSignal = useCallback((ticker: string, currentPrice: number, currentVolume: number, changePercent?: number): StockSignal => {
+  const calculateSignal = useCallback((
+    ticker: string,
+    currentPrice: number,
+    currentVolume: number,
+    changePercent?: number
+  ): StockSignal => {
     const stats = statsRef.current[ticker] || {
       avgVolume20D: currentVolume || 1000000,
       high52W: currentPrice * 1.3,
@@ -77,43 +114,80 @@ export const useSignals = (movers: MarketMover[]) => {
       estimatedIV: 25,
     };
 
-    // --- Metrics ---
+    // --- Core metrics ---
+    const dollarVolume = currentPrice * currentVolume;
+    const warrant = isWarrantTicker(ticker);
+    const pricePenalty = getPriceBandPenalty(currentPrice);
+
     const volumeRatio = stats.avgVolume20D > 0 ? currentVolume / stats.avgVolume20D : 1;
     const distToHigh = stats.high52W > 0 ? Math.abs((currentPrice - stats.high52W) / stats.high52W) * 100 : 999;
     const distToLow = stats.low52W > 0 ? Math.abs((currentPrice - stats.low52W) / stats.low52W) * 100 : 999;
     const distTo52wExtreme = Math.min(distToHigh, distToLow);
 
-    // Use changePercent if available, otherwise calculate from prevClose
     const dailyRange = changePercent !== undefined
       ? Math.abs(changePercent)
       : (stats.prevClose > 0 ? (Math.abs(currentPrice - stats.prevClose) / stats.prevClose) * 100 : 0);
 
-    // --- Triggers (boolean flags) ---
-    const unusualVolume = volumeRatio > 1.8;   // Lowered from 2.0 for better sensitivity
-    const nearExtreme = distTo52wExtreme <= 3;  // Widened from 2% to 3%
+    // --- Fix 2: Volume-weighted % move ---
+    // A +70% move on $19 dollar volume scores near zero.
+    // A +64% move on $83M dollar volume scores near the max.
+    const logDollarVol = dollarVolume > 0 ? Math.log10(dollarVolume) : 0;
+    const liquidityAdjustedMove = (dailyRange * logDollarVol) / DOLLAR_VOL_LOG_NORMALIZER;
+
+    // --- Triggers ---
+    const unusualVolume = volumeRatio > 1.8;
+    const nearExtreme = distTo52wExtreme <= 3;
     const volatilitySpike = dailyRange > 5 || stats.estimatedIV > 40;
 
-    // --- Heat Score (1–100) with exponential scaling ---
-    // Volume contribution (40 points max) — exponential curve for dramatic separation
+    // --- Heat Score (1-100) with liquidity-aware formula ---
+    //
+    // Component weights:
+    //   35% — Liquidity-adjusted move (replaces raw volatility)
+    //   30% — Volume ratio (unusual activity)
+    //   20% — Proximity to 52w extreme
+    //   15% — Raw daily range (for big % movers with confirmed liquidity)
+    //
+    // Then multiplied by:
+    //   priceBandPenalty (0.15–1.0)
+    //   warrant penalty (0.5 if warrant)
+
+    // Liquidity-adjusted move component (35 pts)
+    // CUPR: 64% × log10(83M×$3.97) / 7 ≈ 64 × 8.5 / 7 ≈ 77 → capped → 35pts
+    // NXGLW: 71% × log10(387×$0.05) / 7 ≈ 71 × 1.3 / 7 ≈ 13 → 13/60*35 ≈ 7pts
+    const lamRaw = Math.min(liquidityAdjustedMove / 60, 1);
+    const lamPoints = Math.pow(lamRaw, 0.7) * 35;
+
+    // Volume ratio component (30 pts)
     const volRaw = Math.min(volumeRatio / 2.5, 1);
-    const volPoints = Math.pow(volRaw, 0.7) * 40;
+    const volPoints = Math.pow(volRaw, 0.7) * 30;
 
-    // Proximity to 52w extreme (30 points max) — sharp cutoff below 5%
+    // 52w extreme proximity component (20 pts)
     const extremeRaw = distTo52wExtreme <= 3 ? 1 : Math.max(0, 1 - (distTo52wExtreme - 3) / 12);
-    const extremePoints = Math.pow(extremeRaw, 0.6) * 30;
+    const extremePoints = Math.pow(extremeRaw, 0.6) * 20;
 
-    // Volatility / Daily Range (30 points max) — rewards big movers
-    const volSpikeRaw = Math.min(dailyRange / 8, 1);
-    const volSpikePoints = Math.pow(volSpikeRaw, 0.7) * 30;
+    // Raw daily range bonus (15 pts) — but only for stocks with real liquidity
+    const dollarVolFloor = dollarVolume >= MIN_DOLLAR_VOLUME ? 1 : dollarVolume / MIN_DOLLAR_VOLUME;
+    const rangeRaw = Math.min(dailyRange / 8, 1) * dollarVolFloor;
+    const rangePoints = Math.pow(rangeRaw, 0.7) * 15;
 
-    const heatScore = Math.max(1, Math.min(Math.round(volPoints + extremePoints + volSpikePoints), 100));
+    // Combine and apply penalties
+    let rawScore = lamPoints + volPoints + extremePoints + rangePoints;
 
-    // --- Attention Classification ---
-    // High Attention: heatScore > 70 OR at least 2 of 3 triggers fire
+    // Apply price band penalty
+    rawScore *= pricePenalty;
+
+    // Apply warrant penalty (50% reduction)
+    if (warrant) {
+      rawScore *= 0.5;
+    }
+
+    const heatScore = Math.max(1, Math.min(Math.round(rawScore), 100));
+
+    // --- Attention classification ---
+    // Only stocks above the dollar volume floor can be high attention
     const triggerCount = [unusualVolume, nearExtreme, volatilitySpike].filter(Boolean).length;
-    const isHighAttention = heatScore > 70 || triggerCount >= 2;
+    const isHighAttention = dollarVolume >= MIN_DOLLAR_VOLUME && !warrant && (heatScore > 70 || triggerCount >= 2);
 
-    // Stagnant: low heat AND barely moving
     const isStagnant = heatScore < 25 && dailyRange < 1.0;
 
     return {
@@ -121,6 +195,10 @@ export const useSignals = (movers: MarketMover[]) => {
       heatScore,
       isHighAttention,
       isStagnant,
+      isWarrant: warrant,
+      dollarVolume,
+      liquidityAdjustedMove,
+      priceBandPenalty: pricePenalty,
       triggers: { unusualVolume, nearExtreme, volatilitySpike },
       metrics: { volumeRatio, distTo52wExtreme, dailyRange },
     };

@@ -33,9 +33,13 @@ export interface StockSignal {
   heatScore: number;          // 1-100
   isHighAttention: boolean;
   isStagnant: boolean;
+  isWarrant: boolean;         // Ticker ends in W, +, or WS (warrants/units)
+  dollarVolume: number;       // price × volume — raw liquidity measure
+  liquidityAdjustedMove: number; // %change weighted by log10(dollarVol)
+  priceBandPenalty: number;   // 0-1 multiplier (1 = no penalty, 0 = full penalty)
   triggers: {
-    unusualVolume: boolean;    // Vol > 200% of 20d avg
-    nearExtreme: boolean;      // Price within 2% of 52w High/Low
+    unusualVolume: boolean;    // Vol > 180% of 20d avg
+    nearExtreme: boolean;      // Price within 3% of 52w High/Low
     volatilitySpike: boolean;  // High range movement
   };
   metrics: {

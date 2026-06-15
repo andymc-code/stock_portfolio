@@ -110,6 +110,13 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
     return vol.toString();
   };
 
+  const formatDollarVolume = (dolVol: number): string => {
+    if (dolVol >= 1_000_000_000) return `${(dolVol / 1_000_000_000).toFixed(1)}B`;
+    if (dolVol >= 1_000_000) return `${(dolVol / 1_000_000).toFixed(1)}M`;
+    if (dolVol >= 1_000) return `${(dolVol / 1_000).toFixed(0)}K`;
+    return `${dolVol.toFixed(0)}`;
+  };
+
   const getRawActiveList = (): MarketMover[] => {
     if (!moversData) return [];
     if (activeTab === 'gainers') return moversData.topGainers;
@@ -121,9 +128,14 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
   const activeList = getRawActiveList();
   const { signals } = useSignals(activeList);
 
-  // Auto-sort list:
-  // 1. High Attention pins to the top.
-  // 2. Then ordered by heatScore descending.
+  // Dollar volume floor for filtering
+  const DISPLAY_DOLLAR_VOL_FLOOR = 500_000;
+
+  // Smart sort:
+  // Tier 1: High-attention real stocks (pinned to top, sorted by heat)
+  // Tier 2: Regular stocks above dollar volume floor (sorted by heat)
+  // Tier 3: Warrants (sorted by heat, visually tagged)
+  // Tier 4: Ghost movers below dollar volume floor (dimmed)
   const sortedList = [...activeList].sort((a, b) => {
     const sigA = signals[a.ticker.toUpperCase()];
     const sigB = signals[b.ticker.toUpperCase()];
@@ -131,9 +143,19 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
     if (!sigA) return 1;
     if (!sigB) return -1;
 
-    if (sigA.isHighAttention && !sigB.isHighAttention) return -1;
-    if (!sigA.isHighAttention && sigB.isHighAttention) return 1;
+    // Tier assignment
+    const tierOf = (sig: typeof sigA) => {
+      if (!sig) return 4;
+      if (sig.dollarVolume < DISPLAY_DOLLAR_VOL_FLOOR) return 4; // Ghost
+      if (sig.isWarrant) return 3;                                 // Warrant
+      if (sig.isHighAttention) return 1;                           // High attention
+      return 2;                                                     // Normal
+    };
 
+    const tierA = tierOf(sigA);
+    const tierB = tierOf(sigB);
+
+    if (tierA !== tierB) return tierA - tierB;
     return sigB.heatScore - sigA.heatScore;
   });
 
@@ -226,13 +248,15 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 const signal = signals[ticker];
                 const isStagnant = signal?.isStagnant;
                 const isHigh = signal?.isHighAttention;
+                const isGhost = signal ? signal.dollarVolume < DISPLAY_DOLLAR_VOL_FLOOR : false;
+                const isWarrant = signal?.isWarrant ?? false;
 
                 return (
                   <tr
                     key={mover.ticker}
                     className={`transition-all duration-500 hover:bg-pulse-surface/30 ${
-                      isStagnant ? 'opacity-35 hover:opacity-90' : ''
-                    }`}
+                      isGhost ? 'opacity-20 hover:opacity-60' : ''
+                    } ${isStagnant && !isGhost ? 'opacity-35 hover:opacity-90' : ''}`}
                     style={isHigh ? {
                       background: `linear-gradient(90deg, transparent 0%, hsla(${signal!.heatScore > 70 ? 25 : 270}, 80%, 50%, 0.06) 50%, transparent 100%)`,
                     } : undefined}
@@ -244,13 +268,27 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                       >
                         {mover.ticker}
                       </span>
-                      <button
-                        onClick={() => handleOpenAddModal(mover.ticker)}
-                        className="p-1 rounded bg-gain-bg/20 text-gain hover:bg-gain/20 transition-colors"
-                        title="Add to Watchlist"
-                      >
-                        <PlusIcon className="h-3 w-3" />
-                      </button>
+                      {/* Warrant Badge */}
+                      {isWarrant && (
+                        <span className="text-[0.55rem] font-bold px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20" title="Warrant / Special Security">
+                          W
+                        </span>
+                      )}
+                      {/* Ghost / Low Liquidity Badge */}
+                      {isGhost && (
+                        <span className="text-[0.5rem] font-bold px-1 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/15" title={`Dollar Volume: $${signal ? formatDollarVolume(signal.dollarVolume) : '?'}`}>
+                          LOW LIQ
+                        </span>
+                      )}
+                      {!isGhost && (
+                        <button
+                          onClick={() => handleOpenAddModal(mover.ticker)}
+                          className="p-1 rounded bg-gain-bg/20 text-gain hover:bg-gain/20 transition-colors"
+                          title="Add to Watchlist"
+                        >
+                          <PlusIcon className="h-3 w-3" />
+                        </button>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-text-secondary">
                       ${mover.price.toFixed(2)}
@@ -268,7 +306,7 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                       {signal ? (
                         <div className="flex items-center justify-center gap-2">
                           {/* Mini heat bar */}
-                          <div className="hidden sm:block w-12 h-1.5 rounded-full bg-pulse-surface overflow-hidden" title={`Heat: ${signal.heatScore}/100`}>
+                          <div className="hidden sm:block w-12 h-1.5 rounded-full bg-pulse-surface overflow-hidden" title={`Heat: ${signal.heatScore}/100 | $Vol: $${formatDollarVolume(signal.dollarVolume)}`}>
                             <div
                               className="h-full rounded-full transition-all duration-700"
                               style={{
@@ -302,14 +340,16 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
             const signal = signals[ticker];
             const isStagnant = signal?.isStagnant;
             const isHigh = signal?.isHighAttention;
+            const isGhost = signal ? signal.dollarVolume < DISPLAY_DOLLAR_VOL_FLOOR : false;
+            const isWarrant = signal?.isWarrant ?? false;
 
             return (
               <div
                 key={mover.ticker}
-                onClick={() => onTickerClick?.(mover.ticker)}
-                className={`card p-4 flex flex-col justify-between cursor-pointer border relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 ${
-                  isStagnant ? 'opacity-40 hover:opacity-100' : ''
-                } ${
+                onClick={() => !isGhost && onTickerClick?.(mover.ticker)}
+                className={`card p-4 flex flex-col justify-between border relative overflow-hidden transition-all duration-300 ${
+                  isGhost ? 'opacity-25 hover:opacity-50 cursor-default' : 'cursor-pointer hover:-translate-y-0.5'
+                } ${isStagnant && !isGhost ? 'opacity-40 hover:opacity-100' : ''} ${
                   isHigh 
                     ? 'border-orange-500/50 bg-gradient-to-br from-pulse-surface to-orange-500/5 shadow-[0_0_20px_rgba(249,115,22,0.1)]' 
                     : 'border-pulse-border hover:border-pulse-border-focus'
@@ -318,11 +358,19 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
                 {/* Header info */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="font-mono text-sm font-bold text-text-primary hover:text-accent-primary transition-colors">
-                      {mover.ticker}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-sm font-bold text-text-primary hover:text-accent-primary transition-colors">
+                        {mover.ticker}
+                      </span>
+                      {isWarrant && (
+                        <span className="text-[0.5rem] font-bold px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">W</span>
+                      )}
+                      {isGhost && (
+                        <span className="text-[0.45rem] font-bold px-0.5 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/15">LOW LIQ</span>
+                      )}
+                    </div>
                     <p className="text-[0.65rem] text-text-muted uppercase font-mono mt-0.5">
-                      Vol: {formatVolume(mover.volume)}
+                      Vol: {formatVolume(mover.volume)} {signal ? `· $${formatDollarVolume(signal.dollarVolume)}` : ''}
                     </p>
                   </div>
                   {signal ? (
@@ -359,16 +407,20 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
 
                 {/* Footer Quick Action */}
                 <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-pulse-border/20">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenAddModal(mover.ticker);
-                    }}
-                    className="text-[0.68rem] font-semibold text-gain bg-gain-bg/20 hover:bg-gain/20 px-2 py-0.5 rounded flex items-center gap-1 transition-all"
-                  >
-                    <PlusIcon className="h-3 w-3" />
-                    Watchlist
-                  </button>
+                  {!isGhost ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenAddModal(mover.ticker);
+                      }}
+                      className="text-[0.68rem] font-semibold text-gain bg-gain-bg/20 hover:bg-gain/20 px-2 py-0.5 rounded flex items-center gap-1 transition-all"
+                    >
+                      <PlusIcon className="h-3 w-3" />
+                      Watchlist
+                    </button>
+                  ) : (
+                    <span className="text-[0.55rem] text-red-400/50 font-mono">ILLIQUID</span>
+                  )}
                   {isHigh && (
                     <span className="text-[0.6rem] font-bold text-orange-400 font-mono animate-pulse uppercase tracking-wider">
                       ⚠️ Spike Alert
