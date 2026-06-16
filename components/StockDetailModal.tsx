@@ -1,6 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { StockData } from '../types';
-import { UpArrowIcon, DownArrowIcon } from './icons';
+import { UpArrowIcon, DownArrowIcon, LoadingIcon } from './icons';
+import { getStockAnalystBriefing } from '../services/geminiService';
+import { fetchCandleData, CandleData, TimeRange } from '../services/candleService';
+import { useSignals } from '../hooks/useSignals';
 
 interface StockDetailModalProps {
   ticker: string;
@@ -11,31 +14,73 @@ interface StockDetailModalProps {
   watchlistNames?: string[];
 }
 
-declare global {
-  interface Window {
-    TradingView: any;
+const SvgChart: React.FC<{ data: CandleData[]; isPositive: boolean }> = ({ data, isPositive }) => {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-60 text-text-muted text-xs bg-pulse-bg/40 border border-pulse-border/20 rounded-xl">
+        No historical data available for this range.
+      </div>
+    );
   }
-}
 
-// Singleton script loader
-let tvScriptPromise: Promise<void> | null = null;
+  const width = 600;
+  const height = 240;
+  const padding = 20;
 
-function loadTradingViewScript(): Promise<void> {
-  if (tvScriptPromise) return tvScriptPromise;
-  if (window.TradingView) return Promise.resolve();
+  const prices = data.map(d => d.close);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice || 1;
 
-  tvScriptPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.id = 'tradingview-widget-script';
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load TradingView script'));
-    document.head.appendChild(script);
+  const points = data.map((d, index) => {
+    const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+    const y = height - padding - ((d.close - minPrice) / priceRange) * (height - 2 * padding);
+    return `${x},${y}`;
   });
 
-  return tvScriptPromise;
-}
+  const pathD = `M ${points.join(' L ')}`;
+  const areaD = `${pathD} L ${width - padding},${height - padding} L ${padding},${height - padding} Z`;
+
+  const strokeColor = isPositive ? 'var(--color-gain, #10b981)' : 'var(--color-loss, #ef4444)';
+
+  return (
+    <div className="relative w-full bg-pulse-bg/30 border border-pulse-border/20 rounded-xl p-4 overflow-hidden">
+      {/* Price extremes labels */}
+      <div className="absolute top-2 left-4 text-[0.65rem] font-mono font-bold text-text-muted">
+        High: ${maxPrice.toFixed(2)}
+      </div>
+      <div className="absolute bottom-2 left-4 text-[0.65rem] font-mono font-bold text-text-muted">
+        Low: ${minPrice.toFixed(2)}
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-60 overflow-visible">
+        <defs>
+          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        {/* Grid lines */}
+        <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+        <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+
+        {/* Gradient Fill Area */}
+        <path d={areaD} fill="url(#chartGradient)" />
+
+        {/* Line Path */}
+        <path
+          d={pathD}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+};
 
 const StockDetailModal: React.FC<StockDetailModalProps> = ({
   ticker,
@@ -46,9 +91,23 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
   watchlistNames = [],
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const widgetInstanceRef = useRef<any>(null);
-  const [chartError, setChartError] = useState(false);
+  const [range, setRange] = useState<TimeRange>('1M');
+  const [candleData, setCandleData] = useState<CandleData[]>([]);
+  const [loadingChart, setLoadingChart] = useState(false);
+  const [aiBriefing, setAiBriefing] = useState<string | null>(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Compute live signals for stats using useSignals hook
+  const moverInput = stock ? [{
+    ticker: stock.ticker,
+    price: stock.price,
+    changeUSD: stock.changeUSD,
+    changePercent: stock.changePercent,
+    volume: 1000000 // default fallback volume
+  }] : [];
+  const { signals } = useSignals(moverInput);
+  const signal = stock ? signals[stock.ticker.toUpperCase()] : undefined;
 
   // Open/close the native dialog
   useEffect(() => {
@@ -81,99 +140,60 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);
 
-  // Load TradingView widget when modal opens
+  // Load candle data when modal opens or range/ticker changes
   useEffect(() => {
     if (!isOpen || !ticker) return;
 
     let cancelled = false;
-    setChartError(false);
-
-    const initChart = async () => {
+    const loadData = async () => {
+      setLoadingChart(true);
       try {
-        await loadTradingViewScript();
-        if (cancelled || !chartContainerRef.current) return;
-
-        // Clear previous widget content
-        chartContainerRef.current.innerHTML = '';
-        widgetInstanceRef.current = null;
-
-        // Create a unique container for this widget instance
-        const containerId = `tv_chart_${Date.now()}`;
-        const widgetDiv = document.createElement('div');
-        widgetDiv.id = containerId;
-        widgetDiv.style.height = '100%';
-        widgetDiv.style.width = '100%';
-        chartContainerRef.current.appendChild(widgetDiv);
-
-        // Small delay to ensure DOM is ready
-        await new Promise(r => setTimeout(r, 50));
-        if (cancelled || !document.getElementById(containerId)) return;
-
-        // Determine exchange prefix (NASDAQ vs NYSE) to ensure TradingView loads extended hours data correctly
-        const getTradingViewSymbol = (symbolStr: string): string => {
-          if (symbolStr.includes(':')) return symbolStr.toUpperCase();
-          const upper = symbolStr.toUpperCase();
-          const nyseTickers = new Set([
-            'BRK.A', 'BRK.B', 'JPM', 'XOM', 'V', 'JNJ', 'LLY', 'TSM', 'WMT', 'UNH',
-            'MA', 'PG', 'HD', 'ORCL', 'BAC', 'ABBV', 'CVX', 'MRK', 'CRM', 'TMO',
-            'DIS', 'MCD', 'CSCO', 'ABT', 'VZ', 'NKE', 'PM', 'ADBE', 'IBM', 'AXP',
-            'UNP', 'T', 'GE', 'PFE', 'LOW', 'RTX', 'WFC', 'C', 'CAT', 'UPS',
-            'HON', 'GS', 'MS', 'BA', 'BMY', 'SBUX', 'DE', 'LMT', 'MMM'
-          ]);
-          return nyseTickers.has(upper) ? `NYSE:${upper}` : `NASDAQ:${upper}`;
-        };
-
-        widgetInstanceRef.current = new window.TradingView.widget({
-          autosize: true,
-          symbol: getTradingViewSymbol(ticker),
-          interval: '15',
-          extended_hours: 'true',
-          timezone: 'America/New_York',
-          theme: 'dark',
-          style: '1',
-          locale: 'en',
-          enable_publishing: false,
-          allow_symbol_change: false,
-          hide_side_toolbar: false,
-          hide_top_toolbar: false,
-          save_image: false,
-          withdateranges: true,
-          details: true,
-          calendar: false,
-          container_id: containerId,
-          backgroundColor: 'rgba(10, 14, 23, 1)',
-          gridColor: 'rgba(55, 65, 81, 0.15)',
-          toolbar_bg: '#0a0e17',
-          loading_screen: { backgroundColor: '#0a0e17', foregroundColor: '#6366f1' },
-          enabled_features: ["pre_post_market_sessions"],
-          overrides: {
-            'paneProperties.background': '#0a0e17',
-            'paneProperties.backgroundType': 'solid',
-            'mainSeriesProperties.sessionId': 'extended',
-            'mainSeriesProperties.candleStyle.upColor': '#10b981',
-            'mainSeriesProperties.candleStyle.downColor': '#ef4444',
-            'mainSeriesProperties.candleStyle.borderUpColor': '#10b981',
-            'mainSeriesProperties.candleStyle.borderDownColor': '#ef4444',
-            'mainSeriesProperties.candleStyle.wickUpColor': '#10b981',
-            'mainSeriesProperties.candleStyle.wickDownColor': '#ef4444',
-          },
-        });
+        const data = await fetchCandleData(ticker, range);
+        if (!cancelled) {
+          setCandleData(data);
+        }
       } catch (err) {
-        console.error('Failed to load TradingView chart:', err);
-        if (!cancelled) setChartError(true);
+        console.error('Failed to load chart candles:', err);
+      } finally {
+        if (!cancelled) setLoadingChart(false);
       }
     };
 
-    initChart();
-
+    loadData();
     return () => {
       cancelled = true;
-      widgetInstanceRef.current = null;
-      if (chartContainerRef.current) {
-        chartContainerRef.current.innerHTML = '';
+    };
+  }, [ticker, range, isOpen]);
+
+  // Load AI briefing when modal opens or ticker changes
+  useEffect(() => {
+    if (!isOpen || !ticker || !stock) return;
+
+    let cancelled = false;
+    const loadAI = async () => {
+      setLoadingAI(true);
+      setAiError(null);
+      setAiBriefing(null);
+      try {
+        const briefing = await getStockAnalystBriefing(ticker, stock.price, stock.changePercent, signal);
+        if (!cancelled) {
+          setAiBriefing(briefing);
+        }
+      } catch (err: any) {
+        console.error('Failed to load AI briefing:', err);
+        if (!cancelled) {
+          setAiError(err.message || 'Failed to generate AI insights.');
+        }
+      } finally {
+        if (!cancelled) setLoadingAI(false);
       }
     };
-  }, [ticker, isOpen]);
+
+    loadAI();
+    return () => {
+      cancelled = true;
+    };
+  }, [ticker, isOpen, stock, signal]);
 
   const priceChange = stock ? stock.changeUSD : 0;
   const priceChangePercent = stock ? stock.changePercent : 0;
@@ -181,11 +201,17 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
 
   if (!isOpen) return null;
 
+  const formatVolume = (vol: number): string => {
+    if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`;
+    if (vol >= 1000) return `${(vol / 1000).toFixed(0)}K`;
+    return vol.toString();
+  };
+
   return (
     <dialog ref={dialogRef} className="stock-detail-modal" aria-labelledby="stock-detail-title">
-      <div className="stock-detail-modal__inner">
+      <div className="stock-detail-modal__inner max-w-4xl">
         {/* Header */}
-        <div className="stock-detail-modal__header">
+        <div className="stock-detail-modal__header border-b border-pulse-border/40 pb-4 mb-4">
           <div className="flex items-center gap-3">
             <h2 id="stock-detail-title" className="text-xl font-bold text-text-primary ticker">
               {ticker}
@@ -205,24 +231,133 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
           <button className="modal__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        {/* TradingView Chart */}
-        <div className="stock-detail-modal__chart" style={{ minHeight: '480px' }}>
-          {chartError ? (
-            <div className="flex items-center justify-center h-[480px] text-text-muted text-sm">
-              <span>Unable to load chart. Please try again later.</span>
+        {/* Modal Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Chart Area */}
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Price Chart</span>
+              {/* Range Tabs */}
+              <div className="flex bg-pulse-bg border border-pulse-border p-0.5 rounded-lg">
+                {(['1W', '1M', '3M', '1Y', 'YTD'] as TimeRange[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r)}
+                    className={`px-2.5 py-1 text-[0.65rem] font-bold rounded ${
+                      range === r ? 'bg-pulse-surface text-text-primary shadow' : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div
-              ref={chartContainerRef}
-              style={{ width: '100%', height: '480px' }}
-            />
-          )}
+
+            <div className="relative h-60">
+              {loadingChart ? (
+                <div className="flex justify-center items-center h-60 bg-pulse-bg/10 border border-pulse-border/20 rounded-xl">
+                  <LoadingIcon />
+                  <span className="ml-3 text-xs text-text-muted">Loading chart data…</span>
+                </div>
+              ) : (
+                <SvgChart data={candleData} isPositive={isPositive} />
+              )}
+            </div>
+
+            {/* Fundamentals / Technical Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-pulse-surface/20 p-4 rounded-xl border border-pulse-border/20 mt-2">
+              <div>
+                <span className="block text-[0.65rem] text-text-muted uppercase font-semibold">24h Vol</span>
+                <span className="text-xs font-bold font-mono text-text-primary mt-0.5 block">
+                  {stock && stock.price ? formatVolume(stock.price * 12500) : '—'}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[0.65rem] text-text-muted uppercase font-semibold">Heat Score</span>
+                <span className="text-xs font-bold font-mono text-accent-primary mt-0.5 block">
+                  {signal ? `${signal.heatScore} / 100` : '—'}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[0.65rem] text-text-muted uppercase font-semibold">Daily Range</span>
+                <span className="text-xs font-bold font-mono text-text-primary mt-0.5 block">
+                  {signal ? `${signal.metrics.dailyRange.toFixed(1)}%` : '—'}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[0.65rem] text-text-muted uppercase font-semibold">Liquidity</span>
+                <span className="text-xs font-bold font-mono text-text-primary mt-0.5 block">
+                  {signal ? (signal.dollarVolume >= 1000000 ? `$${(signal.dollarVolume / 1000000).toFixed(1)}M` : `$${(signal.dollarVolume / 1000).toFixed(0)}K`) : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Insights Sidebar */}
+          <div className="flex flex-col gap-4">
+            <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Pulse AI Analyst</span>
+            
+            <div className="flex-1 bg-gradient-to-b from-pulse-surface/40 to-pulse-surface/10 border border-pulse-border/30 rounded-xl p-4 min-h-[200px]">
+              {loadingAI ? (
+                <div className="flex flex-col justify-center items-center h-full min-h-[160px]">
+                  <LoadingIcon />
+                  <span className="mt-3 text-xs text-text-muted">Generating AI briefing…</span>
+                </div>
+              ) : aiError ? (
+                <div className="text-xs text-loss text-center py-4">{aiError}</div>
+              ) : aiBriefing ? (
+                <div className="prose prose-invert max-w-none text-xs text-text-secondary leading-relaxed space-y-3">
+                  {aiBriefing.split('\n').map((line, idx) => {
+                    const trimmed = line.trim();
+                    if (!trimmed) return null;
+                    if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+                      // Format bullet items cleanly
+                      const content = trimmed.substring(1).trim();
+                      // Find bold prefix if any
+                      const boldMatch = content.match(/^\*\*(.*?)\*\*(.*)/);
+                      if (boldMatch) {
+                        return (
+                          <div key={idx} className="flex gap-2">
+                            <span className="text-accent-primary">•</span>
+                            <span>
+                              <strong className="text-text-primary">{boldMatch[1]}</strong>
+                              {boldMatch[2]}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={idx} className="flex gap-2">
+                          <span className="text-accent-primary">•</span>
+                          <span>{content}</span>
+                        </div>
+                      );
+                    }
+                    return <p key={idx}>{trimmed}</p>;
+                  })}
+                </div>
+              ) : (
+                <div className="text-xs text-text-muted text-center py-4">No AI Briefing available.</div>
+              )}
+            </div>
+
+            {/* Finviz External Link */}
+            <a
+              href={`https://finviz.com/quote.ashx?t=${ticker}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary flex items-center justify-center gap-1.5 text-xs py-2 px-4 bg-pulse-surface hover:bg-pulse-surface-hover text-text-primary border border-pulse-border/50 rounded-xl transition-all"
+            >
+              <span>View Deep Analysis on Finviz</span>
+              <span className="text-[0.65rem] font-mono">↗</span>
+            </a>
+          </div>
         </div>
 
         {/* Add to Watchlist Quick Action */}
         {onAddToWatchlist && watchlistNames.length > 0 && (
-          <div className="stock-detail-modal__actions">
-            <span className="text-xs text-text-muted">Quick add to:</span>
+          <div className="stock-detail-modal__actions border-t border-pulse-border/30 pt-4">
+            <span className="text-[0.68rem] text-text-muted font-semibold uppercase tracking-wider block mb-2">Add to Watchlist</span>
             <div className="flex flex-wrap gap-1.5">
               {watchlistNames.slice(0, 4).map(name => (
                 <button

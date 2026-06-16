@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { PortfolioHolding, StockDataMap } from '../types';
+import type { PortfolioHolding, StockDataMap, StockSignal } from '../types';
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 if (!apiKey) {
@@ -42,4 +42,40 @@ export const getPortfolioAnalysis = async (portfolio: PortfolioHolding[], data: 
     });
 
     return response.text;
+};
+
+export const getStockAnalystBriefing = async (
+  ticker: string, 
+  price: number, 
+  changePercent: number, 
+  signal?: StockSignal
+): Promise<string> => {
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please configure VITE_GEMINI_API_KEY to generate analyst briefings.");
+  }
+
+  const signalDetails = signal 
+    ? `Heat Score: ${signal.heatScore}/100, isHighAttention: ${signal.isHighAttention}, unusualVolume: ${signal.triggers.unusualVolume}, near52wExtreme: ${signal.triggers.nearExtreme}, volatilitySpike: ${signal.triggers.volatilitySpike}`
+    : "No computed signal data available.";
+
+  const prompt = `
+    Analyze the technical setup and performance of the stock symbol "${ticker.toUpperCase()}".
+    Current Price: $${price.toFixed(2)}
+    Percentage Change: ${changePercent.toFixed(2)}%
+    Active Signal Metrics: ${signalDetails}
+
+    Provide a concise technical briefing for an active trader. Include exactly 3 bullet points:
+    1. **Trend & Volatility**: Assess the current trend direction and volatility state.
+    2. **Key Levels**: Suggest estimated immediate support and resistance levels based on current price action.
+    3. **Actionable Outlook**: Provide a clear, short outlook/verdict (e.g., Bullish, Bearish, or Neutral/Consolidating) with a 1-sentence rationale.
+
+    Respond in raw markdown format (bullet points only). Do not include introductory text. Keep it extremely brief and professional.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return response.text;
 };
