@@ -12,6 +12,7 @@ interface StockDetailModalProps {
   onClose: () => void;
   onAddToWatchlist?: (ticker: string, watchlistName: string) => void;
   watchlistNames?: string[];
+  aiEnabled: boolean;
 }
 
 const SvgChart: React.FC<{ data: CandleData[]; isPositive: boolean }> = ({ data, isPositive }) => {
@@ -89,6 +90,7 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
   onClose,
   onAddToWatchlist,
   watchlistNames = [],
+  aiEnabled,
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [range, setRange] = useState<TimeRange>('1M');
@@ -165,9 +167,16 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
     };
   }, [ticker, range, isOpen]);
 
-  // Load AI briefing when modal opens or ticker changes
+  // Load AI briefing when modal opens, ticker changes, or AI toggles
   useEffect(() => {
     if (!isOpen || !ticker || !stock) return;
+
+    if (!aiEnabled) {
+      setAiBriefing(null);
+      setLoadingAI(false);
+      setAiError(null);
+      return;
+    }
 
     let cancelled = false;
     const loadAI = async () => {
@@ -193,7 +202,7 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [ticker, isOpen, stock, signal]);
+  }, [ticker, isOpen, stock, signal, aiEnabled]);
 
   const priceChange = stock ? stock.changeUSD : 0;
   const priceChangePercent = stock ? stock.changePercent : 0;
@@ -297,8 +306,16 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
           <div className="flex flex-col gap-4">
             <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Pulse AI Analyst</span>
             
-            <div className="flex-1 bg-gradient-to-b from-pulse-surface/40 to-pulse-surface/10 border border-pulse-border/30 rounded-xl p-4 min-h-[200px]">
-              {loadingAI ? (
+            <div className="flex-1 bg-gradient-to-b from-pulse-surface/40 to-pulse-surface/10 border border-pulse-border/30 rounded-xl p-4 min-h-[200px] flex flex-col justify-center items-center">
+              {!aiEnabled ? (
+                <div className="text-center py-6 px-4">
+                  <span className="text-xl block mb-2">⚡</span>
+                  <p className="text-xs font-semibold text-text-primary mb-1">AI Briefing Paused</p>
+                  <p className="text-[0.65rem] text-text-muted leading-normal">
+                    AI insights are disabled via the global switch in the top header.
+                  </p>
+                </div>
+              ) : loadingAI ? (
                 <div className="flex flex-col justify-center items-center h-full min-h-[160px]">
                   <LoadingIcon />
                   <span className="mt-3 text-xs text-text-muted">Generating AI briefing…</span>
@@ -306,7 +323,7 @@ const StockDetailModal: React.FC<StockDetailModalProps> = ({
               ) : aiError ? (
                 <div className="text-xs text-loss text-center py-4">{aiError}</div>
               ) : aiBriefing ? (
-                <div className="prose prose-invert max-w-none text-xs text-text-secondary leading-relaxed space-y-3">
+                <div className="prose prose-invert max-w-none text-xs text-text-secondary leading-relaxed space-y-3 w-full">
                   {aiBriefing.split('\n').map((line, idx) => {
                     const trimmed = line.trim();
                     if (!trimmed) return null;

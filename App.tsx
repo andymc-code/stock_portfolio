@@ -366,6 +366,7 @@ const App: React.FC = () => {
         onClose={() => setDetailTicker(null)}
         onAddToWatchlist={handleAddTickerToWatchlist}
         watchlistNames={Object.keys(watchlists)}
+        aiEnabled={aiEnabled}
       />
     </div>
   );
