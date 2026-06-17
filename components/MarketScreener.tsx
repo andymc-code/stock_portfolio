@@ -437,6 +437,9 @@ const MarketScreener: React.FC<MarketScreenerProps> = ({ watchlistNames, onAddTo
               </div>
             );
           })}
+        </div>
+      )}
+
       {/* Trigger Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-5 pt-3 border-t border-pulse-border/20 text-[0.62rem] text-text-muted justify-end font-mono">
         <span className="font-semibold text-text-primary uppercase tracking-wider">Metrics Legend:</span>
