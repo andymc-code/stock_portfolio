@@ -66,7 +66,7 @@ const SentimentGauge: React.FC<SentimentGaugeProps> = ({ stockData }) => {
         Market Pulse Sentiment
       </h3>
 
-      <div className="relative w-44 h-24 flex items-center justify-center overflow-hidden">
+      <div className="relative w-44 h-22 flex items-end justify-center overflow-hidden">
         {/* Semi-circle dial background */}
         <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible">
           <defs>
@@ -104,16 +104,16 @@ const SentimentGauge: React.FC<SentimentGaugeProps> = ({ stockData }) => {
             <circle cx="0" cy="0" r="4.5" fill="var(--color-text-primary, #ffffff)" />
           </g>
         </svg>
+      </div>
 
-        {/* Center Text displaying the Sentiment Score */}
-        <div className="absolute bottom-0 text-center">
-          <span className="text-xl font-black font-mono tracking-tight text-text-primary block">
-            {sentiment.score}
-          </span>
-          <span className={`text-[0.62rem] uppercase tracking-wider block ${sentiment.colorClass}`}>
-            {sentiment.label}
-          </span>
-        </div>
+      {/* Text displaying the Sentiment Score */}
+      <div className="text-center mt-2">
+        <span className="text-2xl font-black font-mono tracking-tight text-text-primary block leading-none">
+          {sentiment.score}
+        </span>
+        <span className={`text-[0.68rem] uppercase tracking-wider font-extrabold block mt-1 ${sentiment.colorClass}`}>
+          {sentiment.label}
+        </span>
       </div>
 
       {/* Mini Breadth Info Stats */}
