@@ -16,6 +16,9 @@ import LandingPage from './components/LandingPage';
 import { LoadingIcon, PlusIcon } from './components/icons';
 import MarketScreener from './components/MarketScreener';
 import StockDetailModal from './components/StockDetailModal';
+import TickerBanner from './components/TickerBanner';
+import SentimentGauge from './components/SentimentGauge';
+import NewsFeed from './components/NewsFeed';
 
 const App: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -82,9 +85,10 @@ const App: React.FC = () => {
 
   // Compute all unique tickers
   const allTickers = useMemo(() => {
+    const defaultMarquee = ['SPY', 'QQQ', 'DIA', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN'];
     const portfolioTickers = portfolio.map(p => p.ticker);
     const watchlistTickers = Object.values(watchlists).flat();
-    return [...new Set([...portfolioTickers, ...watchlistTickers])];
+    return [...new Set([...defaultMarquee, ...portfolioTickers, ...watchlistTickers])];
   }, [portfolio, watchlists]);
 
   // Fetch stock data once user data is loaded
@@ -253,6 +257,8 @@ const App: React.FC = () => {
         isLive={isLive}
       />
 
+      <TickerBanner stockData={stockData} onTickerClick={handleTickerClick} />
+
       {/* Navigation Tabs */}
       <div className="container mx-auto px-4 md:px-6 mt-4 max-w-7xl">
         <div className="flex border-b border-pulse-border/40">
@@ -322,6 +328,8 @@ const App: React.FC = () => {
  
           {/* Sidebar */}
           <div className="space-y-5">
+            <SentimentGauge stockData={stockData} />
+
             {Object.entries(watchlists).map(([name, tickers]) => (
               <Watchlist
                 key={name}
@@ -336,6 +344,8 @@ const App: React.FC = () => {
               />
             ))}
  
+            <NewsFeed />
+
             {/* Create New Watchlist */}
             <div className="card">
               <h3 className="text-sm font-semibold text-text-primary mb-3">New Watchlist</h3>

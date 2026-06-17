@@ -718,3 +718,19 @@ input[type="checkbox"] {
     flex-wrap: wrap;
   }
 }
+
+/* --- Marquee Animation --- */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-33.3333%); }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  animation: marquee 35s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
