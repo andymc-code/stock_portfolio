@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ChartIcon, LoadingIcon, UserIcon, RefreshIcon, SparklesIcon } from './icons';
  
@@ -12,9 +12,31 @@ interface HeaderProps {
  
 const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, aiEnabled, onToggleAi, isLive = false }) => {
   const { user, logout } = useAuth();
+  const [visible, setVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Hide header when scrolling down, show when scrolling up
+      if (currentScrollY > lastScrollY && currentScrollY > 80) {
+        setVisible(false);
+      } else {
+        setVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
  
   return (
-    <header className="sticky top-0 z-50 border-b border-pulse-border bg-pulse-bg/80 backdrop-blur-xl">
+    <header className={`sticky top-0 z-50 border-b border-pulse-border bg-pulse-bg/80 backdrop-blur-xl transition-transform duration-300 ${
+      visible ? 'translate-y-0' : '-translate-y-full'
+    }`}>
       <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
