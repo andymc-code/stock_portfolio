@@ -153,7 +153,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ holdings, data, onRemove, onTicke
       </div>
 
       {/* Holdings List */}
-      <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+      <div className="space-y-1.5">
         {filteredHoldings.map(holding => (
           <StockCard
             key={holding.ticker}
